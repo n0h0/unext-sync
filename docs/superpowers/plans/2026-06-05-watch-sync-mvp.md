@@ -1897,19 +1897,19 @@ chrome.runtime.onMessage.addListener((msg) => {
   "version": "0.1.0",
   "description": "U-NEXTの再生状態を複数ユーザーで同期する",
   "permissions": ["tabs", "storage"],
-  "host_permissions": ["https://video.unext.jp/*", "https://*.unext.jp/*"],
+  "host_permissions": ["https://video.unext.jp/*"],
   "action": { "default_popup": "popup.html" },
   "content_scripts": [
     {
-      "matches": ["https://video.unext.jp/*", "https://*.unext.jp/*"],
+      "matches": ["https://video.unext.jp/*"],
       "js": ["content.js"],
       "run_at": "document_idle",
-      "all_frames": true
+      "all_frames": false
     }
   ]
 }
 ```
-注：`matches` / `host_permissions` は Task 1 のPoCで確認した実ドメインに合わせて修正する。
+注：Task 1 のPoC（go確定）の結果を反映済み。動画はトップフレームの素の `querySelector` で取得できるため `all_frames: false`、`matches` は `https://video.unext.jp/*` に限定（GTM解析iframeでの多重起動を防ぐ）。
 
 - [ ] **Step 4: テストが通ることを確認**
 
