@@ -39,7 +39,7 @@ async function start(session: Session): Promise<void> {
   started = true;
 
   const video = await waitForVideo();
-  const controller = new VideoController(video as unknown as any);
+  const controller = new VideoController(video);
 
   // ブラウザWebSocketをSocketLike（onmessageは文字列）に適合させるアダプタ。
   function makeBrowserSocket(url: string) {
@@ -68,7 +68,6 @@ async function start(session: Session): Promise<void> {
         // hostトークンを保持してhostでjoin。roomIDをpopupへ渡して表示させる。
         session.hostToken = msg.hostToken;
         session.roomId = msg.roomId;
-        chrome.storage.local.set({ ["host:" + msg.roomId]: msg.hostToken });
         chrome.runtime.sendMessage({ type: "room_created", roomId: msg.roomId }).catch(() => {});
         client.send({ v: 1, type: "join", roomId: msg.roomId, role: "host", hostToken: msg.hostToken });
         break;
@@ -82,7 +81,7 @@ async function start(session: Session): Promise<void> {
   }
 
   orchestrator = new SyncOrchestrator({
-    role: session.role, controller: controller as any, client: client as any,
+    role: session.role, controller, client,
     now: () => performance.now(),
   });
 
@@ -95,10 +94,10 @@ async function start(session: Session): Promise<void> {
         role: session.role, hostToken: session.hostToken,
       });
     }
-    // 定期ping（RTT測定）
-    setInterval(() => client.sendPing(), DEFAULTS.pingIntervalMs);
   };
   client.connect();
+  // 定期ping（RTT測定）— 接続ごとではなく一度だけ。WsClient.sendは未接続時no-op。
+  setInterval(() => client.sendPing(), DEFAULTS.pingIntervalMs);
 
   // ホスト：mediaイベント送出＋heartbeat。timeupdate駆動を主にし、setIntervalを従に。
   if (session.role === "host") {
@@ -107,11 +106,12 @@ async function start(session: Session): Promise<void> {
       video.addEventListener(dom, () => orchestrator.onMediaEvent(eventMap[dom] ?? (dom as SyncEvent)));
     }
     let lastBeat = 0;
-    video.addEventListener("timeupdate", () => {
+    const beat = () => {
       const t = performance.now();
       if (t - lastBeat >= DEFAULTS.heartbeatMs) { lastBeat = t; orchestrator.heartbeat(); }
-    });
-    setInterval(() => orchestrator.heartbeat(), DEFAULTS.heartbeatMs); // バックグラウンド従
+    };
+    video.addEventListener("timeupdate", beat); // 前面では主にこちら
+    setInterval(beat, DEFAULTS.heartbeatMs);    // バックグラウンドのスロットリング時の従
   } else {
     // 参加者：定期tickでドリフト補正＋自分の誤操作を即リコンサイル。
     setInterval(() => void orchestrator.tick(), DEFAULTS.heartbeatMs);

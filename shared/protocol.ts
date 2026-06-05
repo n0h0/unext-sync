@@ -34,8 +34,9 @@ export interface HostStatusMessage {
   v: number; type: "host_taken" | "host_disconnected" | "host_resumed";
 }
 export interface PongMessage { v: number; type: "pong"; id: number; }
+export interface NoRoomMessage { v: number; type: "no_room"; }
 export type ServerMessage =
-  | CreatedMessage | JoinedMessage | StateMessage | HostStatusMessage | PongMessage;
+  | CreatedMessage | JoinedMessage | StateMessage | HostStatusMessage | PongMessage | NoRoomMessage;
 
 const SYNC_EVENTS: SyncEvent[] = ["play", "pause", "seek", "ratechange", "heartbeat"];
 

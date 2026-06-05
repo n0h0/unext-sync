@@ -1,6 +1,7 @@
 import { test, expect, vi } from "vitest";
 import { SyncOrchestrator } from "./sync-orchestrator";
 import type { StateMessage } from "../../shared/protocol";
+import { DEFAULTS } from "../../shared/sync-core";
 
 function deps(overrides: any = {}) {
   let t = 0;
@@ -76,4 +77,13 @@ test("host heartbeat() sends current state as heartbeat event", () => {
   const o = new SyncOrchestrator({ ...d, role: "host" });
   o.heartbeat();
   expect(d.sent[0]).toMatchObject({ type: "sync", event: "heartbeat", currentTime: 100 });
+});
+
+test("onServerState honors tolerance for heartbeat but snaps exactly for discrete events", async () => {
+  const d = deps();
+  const o = new SyncOrchestrator({ ...d, role: "participant" });
+  await o.onServerState(stateMsg(1, 200)); // stateMsg default event is "heartbeat"
+  expect(d.controller.apply).toHaveBeenLastCalledWith(expect.anything(), DEFAULTS.toleranceSec);
+  await o.onServerState({ ...stateMsg(2, 300), event: "seek" });
+  expect(d.controller.apply).toHaveBeenLastCalledWith(expect.anything(), 0);
 });

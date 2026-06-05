@@ -45,7 +45,7 @@ export class VideoController {
         this.media.playbackRate = target.playbackRate;
       }
       if (target.playing && this.media.paused) {
-        await this.media.play();
+        try { await this.media.play(); } catch { /* autoplay/NotAllowed: ignore, drift loop will retry */ }
       } else if (!target.playing && !this.media.paused) {
         this.media.pause();
       }

@@ -30,4 +30,5 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.event === "host_disconnected") setStatus("host_gone");
   else if (msg.event === "host_resumed") setStatus("connected");
   else if (msg.event === "host_taken") setStatus("connected"); // participantフォールバック
+  else if (msg.event === "no_room") setStatus("no_room");
 });

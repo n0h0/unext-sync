@@ -8,6 +8,7 @@ test("maps connection states to Japanese labels", () => {
     ["connected", "接続済み"],
     ["disconnected", "切断"],
     ["host_gone", "ホスト切断"],
+    ["no_room", "ルームが存在しません"],
   ];
   for (const [s, label] of cases) {
     expect(renderStatusLabel(s)).toBe(label);

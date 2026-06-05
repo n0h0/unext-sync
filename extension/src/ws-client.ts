@@ -52,6 +52,7 @@ export class WsClient {
       this.deps.onMessage(msg);
     };
     s.onclose = () => {
+      this.pingSentAt.clear();
       this.onClose?.();
       const delay = nextBackoffMs(this.attempt++);
       this.schedule(() => this.connect(), delay);

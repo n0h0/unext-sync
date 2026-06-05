@@ -59,9 +59,10 @@ export class SyncOrchestrator {
     this.lastState = msg;
     this.lastReceiptMs = this.deps.now();
     const expected = this.projected();
+    const tol = msg.event === "heartbeat" ? DEFAULTS.toleranceSec : 0;
     await this.deps.controller.apply({
       playing: msg.playing, currentTime: expected, playbackRate: msg.playbackRate,
-    });
+    }, tol);
   }
 
   async tick(): Promise<void> {

@@ -79,7 +79,7 @@ export async function startServer(port = Number(process.env.PORT) || 8080): Prom
         }
         case "join": {
           const r = rooms.join(msg.roomId, ctx.id, msg.role, msg.hostToken);
-          if (r.outcome === "no_room") { send(ws, { v: PROTOCOL_VERSION, type: "host_taken" }); return; }
+          if (r.outcome === "no_room") { send(ws, { v: PROTOCOL_VERSION, type: "no_room" }); return; }
           ctx.roomId = msg.roomId;
           if (r.outcome === "host_taken") {
             send(ws, { v: PROTOCOL_VERSION, type: "host_taken" });
