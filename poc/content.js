@@ -1,6 +1,7 @@
-// Phase 0 PoC v2: U-NEXTプレイヤーの<video>に到達し、"再生中に" 制御できるか検証する。
-// すべて [WatchSync PoC] プレフィックスでconsoleに出す。
-// 使い方: 拡張を再読込 → タイトルを再生 → 15秒ほど進めてから Console で __wsTest() を実行。
+// Phase 0 PoC v3: U-NEXTプレイヤーの<video>に到達し、"再生中に" 制御できるか検証する。
+// content scriptは隔離ワールドのためConsoleからの関数呼び出しは不可。
+// → 再生が10秒を超えたら自動で1回だけ制御テストを実行し、結果をconsoleに出す（実行後は元に戻す）。
+// 使い方: 拡張を再読込 → タイトルを再生 → 10秒少々待つだけ。手動操作不要。
 (function () {
   const TAG = "[WatchSync PoC]";
   const frame = window === window.top ? "TOP" : "IFRAME";
@@ -31,64 +32,61 @@
     return video;
   }
 
-  // 1) 受動モニタ：currentTimeが増えるか / durationが実値になるかを確認
-  setInterval(function () {
-    const v = ensureVideo();
-    if (!v) { console.log(TAG, frame, "no video yet"); return; }
-    console.log(TAG, frame, "tick", {
-      currentTime: Number(v.currentTime.toFixed(2)),
-      duration: v.duration,
-      paused: v.paused,
-      rate: v.playbackRate,
-    });
-  }, 3000);
-
-  // 2) 能動制御テスト：再生が進んだ後に手動で呼ぶ
-  window.__wsTest = function () {
-    const v = ensureVideo();
-    if (!v) { console.log(TAG, "no video"); return; }
-    if (!(v.currentTime > 8)) {
-      console.log(TAG, "再生をもう少し進めてから(8秒以上)実行してください。now=", v.currentTime);
-      return;
-    }
-
+  function runControlTest(v) {
     // --- SEEK test ---
     const before = v.currentTime;
     const target = Math.max(0, before - 5);
     v.currentTime = target;
-    console.log(TAG, "SEEK set", { before, target });
+    console.log(TAG, "SEEK set", { before: +before.toFixed(2), target: +target.toFixed(2) });
     setTimeout(function () {
-      console.log(TAG, "SEEK after 0.8s", {
-        now: Number(v.currentTime.toFixed(2)),
-        expected_near: Number(target.toFixed(2)),
-        stuck_or_reverted: Math.abs(v.currentTime - target) > 3 ? "REVERTED?" : "OK",
+      console.log(TAG, "SEEK after 1s", {
+        now: +v.currentTime.toFixed(2),
+        expected_near: +target.toFixed(2),
+        verdict: Math.abs(v.currentTime - target) > 3 ? "REVERTED?" : "OK",
       });
-    }, 800);
+    }, 1000);
 
     // --- PAUSE / PLAY test ---
     const wasPaused = v.paused;
-    console.log(TAG, "PAUSE/PLAY test: wasPaused", wasPaused);
     if (wasPaused) {
       Promise.resolve(v.play()).catch(function (e) { console.log(TAG, "play() err", e); });
     } else {
       v.pause();
     }
     setTimeout(function () {
-      console.log(TAG, "PAUSE/PLAY after 0.8s paused=", v.paused, "(toggled?", v.paused !== wasPaused, ")");
-      // 元の状態に戻す
+      console.log(TAG, "PAUSE/PLAY after 1s", {
+        wasPaused: wasPaused, nowPaused: v.paused, toggled: v.paused !== wasPaused,
+      });
       if (wasPaused && !v.paused) v.pause();
       if (!wasPaused && v.paused) Promise.resolve(v.play()).catch(function () {});
-    }, 800);
+    }, 1000);
 
     // --- RATE test ---
     const r0 = v.playbackRate;
     const r1 = r0 === 1 ? 1.5 : 1;
     v.playbackRate = r1;
     setTimeout(function () {
-      console.log(TAG, "RATE after 0.8s", { set: r1, now: v.playbackRate, ok: v.playbackRate === r1 });
-      v.playbackRate = r0; // 戻す
-    }, 800);
-  };
+      console.log(TAG, "RATE after 1s", { set: r1, now: v.playbackRate, ok: v.playbackRate === r1 });
+      v.playbackRate = r0;
+    }, 1000);
+  }
 
-  console.log(TAG, frame, "PoC v2 loaded. 再生を8秒以上進めてから Console で __wsTest() を実行してください。");
+  let tested = false;
+  setInterval(function () {
+    const v = ensureVideo();
+    if (!v) { console.log(TAG, frame, "no video yet"); return; }
+    console.log(TAG, frame, "tick", {
+      currentTime: +v.currentTime.toFixed(2),
+      duration: v.duration,
+      paused: v.paused,
+      rate: v.playbackRate,
+    });
+    if (!tested && v.currentTime > 10 && isFinite(v.duration)) {
+      tested = true;
+      console.log(TAG, frame, "=== auto control test start ===");
+      runControlTest(v);
+    }
+  }, 3000);
+
+  console.log(TAG, frame, "PoC v3 loaded. タイトルを再生し10秒少々待つと自動でテストします（手動操作不要）。");
 })();
