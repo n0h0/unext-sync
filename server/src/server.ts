@@ -5,7 +5,6 @@ import {
   type ServerMessage,
 } from "../../shared/protocol";
 import { RoomManager } from "./rooms";
-import { DEFAULTS } from "../../shared/sync-core";
 
 interface ClientCtx {
   id: string;

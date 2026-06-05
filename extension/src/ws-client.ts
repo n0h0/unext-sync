@@ -29,7 +29,7 @@ export class WsClient {
   private readonly now: () => number;
   private readonly schedule: (fn: () => void, ms: number) => void;
 
-  constructor(private url: string, private deps: WsClientDeps) {
+  constructor(_url: string, private deps: WsClientDeps) {
     this.now = deps.now ?? (() => Date.now());
     this.schedule = deps.schedule ?? ((fn, ms) => setTimeout(fn, ms));
   }
