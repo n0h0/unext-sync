@@ -91,10 +91,7 @@ export async function startServer(port = Number(process.env.PORT) || 8080): Prom
             });
             if (r.outcome === "joined-host") broadcastHostStatus(msg.roomId, "host_resumed");
           }
-          if (r.outcome === "joined-participant" && r.lastState) {
-            const lastState = r.lastState;
-            setImmediate(() => send(ws, lastState));
-          }
+          if (r.outcome === "joined-participant" && r.lastState) send(ws, r.lastState);
           break;
         }
         case "sync": {
