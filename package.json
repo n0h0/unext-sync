@@ -6,7 +6,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build:extension": "node build.mjs",
-    "build:server": "esbuild server/src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --packages=external",
+    "build:server": "node build-server.mjs",
     "start": "node dist/server.js",
     "dev:server": "tsx watch server/src/server.ts"
   },
@@ -21,5 +21,6 @@
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
-  }
+  },
+  "packageManager": "pnpm@11.5.2+sha512.71c631e382066efc25625d5cf029075de07b61b37f6e27350fbd84b1bda5864c8c1967adc280776b45c30a715c0359a3be08fef42d5bb09e2b99029979692916"
 }

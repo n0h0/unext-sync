@@ -1,0 +1,46 @@
+# サプライチェーン攻撃対策 — https://pnpm.io/ja/supply-chain-security
+
+# 新規公開バージョンのインストールをクールダウン（1週間）
+minimumReleaseAge: 10080
+# ロックファイル確立時点（2026-06-06）で1週間未満だったバージョンを除外。
+# これらは npm 管理時から使っていた既知のバージョンであり信頼済み。
+# 各バージョンが7日を超えたら随時このリストから削除できる。
+minimumReleaseAgeExclude:
+  # vitest 4.1.8 スイート（公開: 2026-06-01）
+  - vitest@4.1.8
+  - "@vitest/expect@4.1.8"
+  - "@vitest/mocker@4.1.8"
+  - "@vitest/pretty-format@4.1.8"
+  - "@vitest/runner@4.1.8"
+  - "@vitest/snapshot@4.1.8"
+  - "@vitest/spy@4.1.8"
+  - "@vitest/utils@4.1.8"
+  # vite 8.0.16（公開: 2026-06-01、vitest の peer dep）
+  - vite@8.0.16
+  # tsx 4.22.4（公開: 2026-05-31）
+  - tsx@4.22.4
+  # 以下は vitest の推移的依存
+  - tinyexec@1.2.4  # 公開: 2026-05-31
+  - tinyglobby@0.2.17  # 公開: 2026-05-30
+  - obug@2.1.2  # 公開: 2026-06-04
+
+# 推移的依存が git/tarball 等の exotic protocol を使うのを禁止（v11 デフォルトを明示）
+blockExoticSubdeps: true
+
+# 未承認ビルドスクリプトがあればインストールを非ゼロ終了（v11 デフォルトを明示）
+strictDepBuilds: true
+
+# 全依存の postinstall 自動実行は無効（デフォルトを明示）
+dangerouslyAllowAllBuilds: false
+
+# 信頼レベル/provenance が低下したパッケージのインストールを失敗させる
+trustPolicy: no-downgrade
+trustPolicyExclude: [] # 誤検知時に "package@x.y.z" を追加
+
+# pnpm run / pnpm exec の前に node_modules の整合性を検証
+verifyDepsBeforeRun: install
+
+# 信頼するパッケージのみビルドスクリプト実行を許可
+# （esbuild はプラットフォームバイナリを postinstall で取得するため必須）
+allowBuilds:
+  esbuild: true
