@@ -54,6 +54,16 @@
 
 ブラウザ `WebSocket` の第2引数（subprotocols）はハンドシェイクの `Sec-WebSocket-Protocol` ヘッダとして送出される。RFC 6455 上、クライアントがサブプロトコルを提示してサーバーが1つも選択しなくても接続は成立するため、サーバー側でサブプロトコルを echo する必要はない。
 
+### 2.3 シークレットの文字種制約（token-safe・重大）
+
+`Sec-WebSocket-Protocol` に載せる値は RFC 6455 §4.1 / WHATWG HTML 仕様上 **token**（RFC 7230）でなければならない。`/` `=` `+` `,` `:` `;` 等の separator は使用不可。
+
+ブラウザの `new WebSocket(url, [secret])` は、`secret` が token に違反すると**同期的に `SyntaxError` を throw** する。本実装では `makeBrowserSocket` → `factory()` → `WsClient.connect()` が例外で落ち、**拡張が無言で機能停止する**（ハンドシェイク以前に死ぬ）。これは衛生上の問題ではなく本番を起動直後に壊す制約のため、設計本文の必須要件として扱う。
+
+- **`CONNECT_SECRET` は token-safe な文字種で生成すること。hex を推奨**（例: `openssl rand -hex 32`）。base64url（`A–Z a–z 0–9 - _`、パディング無し）も可。
+- **標準 base64（`openssl rand -base64 32`）は不可**（`+ / =` を含みうる）。
+- 安全側に倒すため、クライアント（§3.4）とサーバー（§3.1）の双方で、シークレットが token 文字種に合致するかを軽くバリデーションする。正規表現は `^[A-Za-z0-9_-]+$`（hex / base64url を許容、separator を排除）を用いる。
+
 ## 3. コンポーネント変更
 
 ### 3.1 `server/src/auth.ts`（新規・純粋関数）
@@ -64,6 +74,7 @@ checkConnectSecret(presented: string | undefined, expected: string): boolean
 
 - 定数時間比較（`crypto.timingSafeEqual`）。長さが違う場合は `timingSafeEqual` が例外を投げるため、先に長さチェックして `false` を返す。
 - `presented` が `undefined`／空文字なら `false`。
+- 起動時に `expected`（＝`CONNECT_SECRET`）が token 文字種（`^[A-Za-z0-9_-]+$`、§2.3）に合致するか検証し、違反していれば fail-closed で起動拒否する。token 違反のシークレットはクライアント側で `SyntaxError` を起こし接続不能になるため、サーバー側でも早期に弾く。
 - ws非依存・副作用なし。既存の「状態ロジックは純粋に保ち、`server.ts` は配線だけ」という不変条件（CLAUDE.md / 設計不変条件#2）に沿う。**TDDで単体テストする。**
 
 定数時間比較は、本脅威モデル（知人＋低機密）に対しては過剰気味だが、コストが小さく衛生的に良いので採用する。
@@ -72,8 +83,9 @@ checkConnectSecret(presented: string | undefined, expected: string): boolean
 
 - 起動時に `process.env.CONNECT_SECRET` を読む。**未設定ならサーバー起動を拒否（fail closed）**。明示的なエラーメッセージで `process.exit`／throw する。「うっかり認証なしデプロイ」を構造的に防ぐ。
 - `new WebSocketServer({ port })` → `new WebSocketServer({ port, verifyClient })` に変更。
-- `verifyClient(info, cb)` の中で `info.req.headers["sec-websocket-protocol"]` を取得する。これはカンマ区切りの文字列になりうるため、分割・トリムして各候補を `checkConnectSecret` にかける（実装簡略のため「最初の候補のみ」検証でも可。クライアントは常に1個しか送らない）。
+- `verifyClient(info, cb)` のコールバック形 `cb(result, code, name)` を使う。`info.req.headers["sec-websocket-protocol"]` を取得する。これはカンマ区切りの文字列になりうるため、分割・トリムし、クライアントは常に1個しか送らない前提で先頭候補を `checkConnectSecret` にかける。
 - 一致 → `cb(true)`。不一致 → `cb(false, 401, "Unauthorized")`。
+- 実装上の補足: `ws` では `verifyClient` で十分だが、ライブラリ的には `server.on('upgrade')` の手動ハンドリングが推奨方向。本用途では `verifyClient` を採用する。
 
 ### 3.3 `extension/src/config.ts`
 
@@ -89,6 +101,7 @@ export const CONNECT_SECRET = __CONNECT_SECRET__;
 ### 3.4 `extension/src/content.ts`
 
 - ソケット生成箇所 `makeBrowserSocket` 内の `new WebSocket(url)` を `new WebSocket(url, [CONNECT_SECRET])` に変更する（1行）。`CONNECT_SECRET` を `config` から import する。
+- `config.ts` 側で `CONNECT_SECRET` が token 文字種（`^[A-Za-z0-9_-]+$`、§2.3）に合致するかをモジュール初期化時に検証し、違反していれば明示メッセージで早期に throw する（`new WebSocket` の不透明な `SyntaxError` で無言停止するのを防ぎ、原因を分かりやすくする）。
 
 ### 3.5 `build.mjs`
 
@@ -99,6 +112,7 @@ export const CONNECT_SECRET = __CONNECT_SECRET__;
 
 - `.env.example` に `CONNECT_SECRET=` プレースホルダを追加（`.env` は gitignore 済み）。
 - README / CLAUDE.md に以下を追記:
+  - **鍵の生成**: token-safe な値を使う。`openssl rand -hex 32`（hex）を推奨。**`openssl rand -base64 32` は使わない**（`+ / =` で拡張が `SyntaxError` で停止、§2.3）。
   - サーバー: Render の環境変数に `CONNECT_SECRET` を設定する。
   - 拡張ビルド: `CONNECT_SECRET=... pnpm build:extension`（またはローカル `.env` 読み込み）。
   - ローテーション手順: サーバーenv と 拡張埋め込み値の**両方**を新しい値に変更し、拡張を再ビルド・再配布する。
@@ -106,12 +120,12 @@ export const CONNECT_SECRET = __CONNECT_SECRET__;
 ## 4. エラーハンドリング
 
 - **サーバー env 未設定** → 起動時に明示エラーで停止（fail closed）。
-- **誤シークレットでの接続** → 401でハンドシェイク拒否。クライアントは既存の再接続バックオフ（`ws-client.ts`）で再試行する。**鍵が間違っている限り延々リトライし自然回復しない**点に注意（仕様上の既知挙動）。
+- **誤シークレットでの接続** → 401でハンドシェイク拒否。クライアントは既存の再接続バックオフ（`ws-client.ts` の `onclose` → `nextBackoffMs(attempt++)`）で再試行する。**鍵が間違っている限り再接続し続け、自然回復しない**点に注意（仕様上の既知挙動）。`nextBackoffMs` は `Math.min(maxMs, baseMs * 2**attempt)` で **`reconnectMaxMs`（=30秒）に cap される**（`sync-core.ts`）ため無限増加はせず、500ms から倍々に増えて最終的に**30秒間隔の定期リトライ**に収束する。なお `connect()` の `onopen` は `attempt` をリセットしない（既存挙動）ため、長時間セッションで断続的に切断が起きると次回バックオフが cap 寄りから始まりうるが、本変更の範囲外。
 - **ビルド env 未設定** → 明示メッセージでビルド失敗。
 
 ## 5. テスト
 
-- `server/src/auth.test.ts`（TDD・純粋関数）: 一致／不一致／`undefined`／空文字／長さ違いで例外を投げないこと。
+- `server/src/auth.test.ts`（TDD・純粋関数）: 一致／不一致／`undefined`／空文字／長さ違いで例外を投げないこと。token 文字種バリデーション（hex・base64url は通る／`+ / = ,` 等を含む値は拒否）。
 - 任意（推奨）: サーバーを実起動し「サブプロトコル無しは接続拒否・正しいサブプロトコルは接続成立」を確認する小さな統合テスト1本。
 
 ## 6. 既知の制約 / 残存リスク
@@ -120,3 +134,4 @@ export const CONNECT_SECRET = __CONNECT_SECRET__;
 2. **鍵はクライアントバンドルに載る**: ビルド済み拡張を配布した時点で知人のディスクに鍵が存在する。信頼する知人前提のモデルでは想定内。
 3. **DoS残渣**: 拒否ハンドシェイクも僅かにCPUを消費する。per-IPレート制限は入れない（YAGNI）。匿名フラッドは「安く弾ける」が「ゼロコスト」ではない。
 4. **E2E暗号化ではない**: サーバー（Render）は従来通り再生状態を観測できる。本変更の範囲外（挙動変更なし）。
+5. **鍵はブラウザからも観測可能**: wss でも、拡張を実行する本人のブラウザ DevTools の Network タブでハンドシェイク（`Sec-WebSocket-Protocol` ヘッダ）に平文で見える。信頼する知人前提のモデルでは結論は変わらないが、脅威モデルの透明性として明記する。
