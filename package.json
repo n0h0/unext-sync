@@ -1,0 +1,25 @@
+{
+  "name": "unext-sync",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:extension": "node build.mjs",
+    "build:server": "esbuild server/src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --packages=external",
+    "start": "node dist/server.js",
+    "dev:server": "tsx watch server/src/server.ts"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.42",
+    "@types/node": "^25.9.1",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}
