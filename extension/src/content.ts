@@ -2,7 +2,7 @@ import { VideoController } from "./video-controller";
 import { WsClient } from "./ws-client";
 import { SyncOrchestrator } from "./sync-orchestrator";
 import { DEFAULTS } from "../../shared/sync-core";
-import { SERVER_URL } from "./config";
+import { SERVER_URL, CONNECT_SECRET } from "./config";
 import type { ServerMessage, SyncEvent } from "../../shared/protocol";
 
 // Shadow DOM/通常DOMを再帰探索（PoCの到達方法に合わせる）。
@@ -43,7 +43,7 @@ async function start(session: Session): Promise<void> {
 
   // ブラウザWebSocketをSocketLike（onmessageは文字列）に適合させるアダプタ。
   function makeBrowserSocket(url: string) {
-    const raw = new WebSocket(url);
+    const raw = new WebSocket(url, [CONNECT_SECRET]);
     return {
       get readyState() { return raw.readyState; },
       send: (d: string) => raw.send(d),
