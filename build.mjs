@@ -2,6 +2,7 @@ import { build } from "esbuild";
 import { cp, mkdir, rm } from "node:fs/promises";
 
 const secret = process.env.CONNECT_SECRET;
+// TOKEN_SAFE_RE（shared/secret.ts）のミラー。.mjs は .ts を import できないため重複。文字種を変えるなら両方更新する。
 if (!secret || !/^[A-Za-z0-9_-]+$/.test(secret)) {
   console.error(
     "CONNECT_SECRET is unset or not token-safe.\n" +
