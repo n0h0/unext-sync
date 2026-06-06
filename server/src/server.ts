@@ -5,6 +5,8 @@ import {
   type ServerMessage,
 } from "../../shared/protocol";
 import { RoomManager } from "./rooms";
+import { checkConnectSecret } from "./auth";
+import { isTokenSafe } from "../../shared/secret";
 
 interface ClientCtx {
   id: string;
@@ -27,7 +29,21 @@ function genRoomId(): string {
   return randomUUID().replace(/-/g, "").slice(0, 8);
 }
 
-export async function startServer(port = Number(process.env.PORT) || 8080): Promise<RunningServer> {
+function requireSecretFromEnv(): string {
+  const s = process.env.CONNECT_SECRET;
+  if (!s || !isTokenSafe(s)) {
+    throw new Error(
+      "CONNECT_SECRET is unset or not token-safe. " +
+        "Set a hex secret, e.g. `openssl rand -hex 32`.",
+    );
+  }
+  return s;
+}
+
+export async function startServer(
+  port = Number(process.env.PORT) || 8080,
+  connectSecret: string = requireSecretFromEnv(),
+): Promise<RunningServer> {
   const rooms = new RoomManager({
     now: () => Date.now(),
     genId: genRoomId,
@@ -36,7 +52,17 @@ export async function startServer(port = Number(process.env.PORT) || 8080): Prom
   });
   const ctxOf = new WeakMap<WebSocket, ClientCtx>();
 
-  const wss = new WebSocketServer({ port });
+  const wss = new WebSocketServer({
+    port,
+    verifyClient: (info, cb) => {
+      const raw = info.req.headers["sec-websocket-protocol"];
+      const presented = (typeof raw === "string" ? raw : "")
+        .split(",")[0]
+        ?.trim();
+      if (checkConnectSecret(presented, connectSecret)) cb(true);
+      else cb(false, 401, "Unauthorized");
+    },
+  });
   await new Promise<void>((res) => wss.on("listening", () => res()));
 
   const send = (ws: WebSocket, msg: ServerMessage) => {

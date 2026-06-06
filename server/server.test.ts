@@ -2,6 +2,8 @@ import { test, expect, afterEach } from "vitest";
 import { WebSocket } from "ws";
 import { startServer } from "./src/server";
 
+const TEST_SECRET = "testsecrettoken0123";
+
 let stop: (() => Promise<void>) | null = null;
 afterEach(async () => { if (stop) await stop(); stop = null; });
 
@@ -21,8 +23,11 @@ function reader(ws: WebSocket) {
   };
 }
 
-function connect(port: number): Promise<{ ws: WebSocket; r: ReturnType<typeof reader> }> {
-  const ws = new WebSocket(`ws://localhost:${port}`);
+function connect(
+  port: number,
+  secret: string = TEST_SECRET,
+): Promise<{ ws: WebSocket; r: ReturnType<typeof reader> }> {
+  const ws = new WebSocket(`ws://localhost:${port}`, [secret]);
   const r = reader(ws);
   return new Promise((res, rej) => {
     ws.on("open", () => res({ ws, r }));
@@ -32,7 +37,7 @@ function connect(port: number): Promise<{ ws: WebSocket; r: ReturnType<typeof re
 const send = (ws: WebSocket, o: any) => ws.send(JSON.stringify(o));
 
 test("create returns created with roomId and hostToken", async () => {
-  const { port, stop: s } = await startServer(0);
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
   stop = s;
   const { ws: host, r: hostR } = await connect(port);
   send(host, { v: 1, type: "create" });
@@ -43,7 +48,7 @@ test("create returns created with roomId and hostToken", async () => {
 });
 
 test("host sync is broadcast to participant", async () => {
-  const { port, stop: s } = await startServer(0);
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
   stop = s;
   const { ws: host, r: hostR } = await connect(port);
   send(host, { v: 1, type: "create" });
@@ -64,7 +69,7 @@ test("host sync is broadcast to participant", async () => {
 });
 
 test("late participant immediately receives lastState", async () => {
-  const { port, stop: s } = await startServer(0);
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
   stop = s;
   const { ws: host, r: hostR } = await connect(port);
   send(host, { v: 1, type: "create" });
@@ -82,7 +87,7 @@ test("late participant immediately receives lastState", async () => {
 });
 
 test("second host with wrong token gets host_taken", async () => {
-  const { port, stop: s } = await startServer(0);
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
   stop = s;
   const { ws: host, r: hostR } = await connect(port);
   send(host, { v: 1, type: "create" });
@@ -97,10 +102,34 @@ test("second host with wrong token gets host_taken", async () => {
 });
 
 test("ping gets pong with same id", async () => {
-  const { port, stop: s } = await startServer(0);
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
   stop = s;
   const { ws, r } = await connect(port);
   send(ws, { v: 1, type: "ping", id: 7 });
   const msg = await r.next();
   expect(msg).toMatchObject({ type: "pong", id: 7 });
+});
+
+test("connection without secret is rejected at handshake", async () => {
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
+  stop = s;
+  await expect(
+    new Promise((res, rej) => {
+      const ws = new WebSocket(`ws://localhost:${port}`); // サブプロトコル無し
+      ws.on("open", () => res("open"));
+      ws.on("error", (e) => rej(e));
+    }),
+  ).rejects.toThrow();
+});
+
+test("connection with wrong secret is rejected at handshake", async () => {
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
+  stop = s;
+  await expect(
+    new Promise((res, rej) => {
+      const ws = new WebSocket(`ws://localhost:${port}`, ["wrongsecret"]);
+      ws.on("open", () => res("open"));
+      ws.on("error", (e) => rej(e));
+    }),
+  ).rejects.toThrow();
 });
