@@ -133,3 +133,13 @@ test("connection with wrong secret is rejected at handshake", async () => {
     }),
   ).rejects.toThrow();
 });
+
+test("startServer() without arg rejects when CONNECT_SECRET env is unset", async () => {
+  const saved = process.env.CONNECT_SECRET;
+  delete process.env.CONNECT_SECRET;
+  try {
+    await expect(startServer(0)).rejects.toThrow("CONNECT_SECRET");
+  } finally {
+    if (saved !== undefined) process.env.CONNECT_SECRET = saved;
+  }
+});
