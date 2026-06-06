@@ -1,9 +1,5 @@
-import {
-  projectedHostTime, needsCorrection, isStaleSeq, DEFAULTS,
-} from "../../shared/sync-core";
-import type {
-  SyncEvent, SyncMessage, StateMessage,
-} from "../../shared/protocol";
+import type { StateMessage, SyncEvent, SyncMessage } from "../../shared/protocol";
+import { DEFAULTS, isStaleSeq, needsCorrection, projectedHostTime } from "../../shared/sync-core";
 import type { ReadableState } from "./video-controller";
 
 export interface OrchestratorControllerLike {
@@ -45,9 +41,13 @@ export class SyncOrchestrator {
   private emit(event: SyncEvent): void {
     const s = this.deps.controller.readState();
     this.deps.client.send({
-      v: 1, type: "sync", event,
-      playing: s.playing, currentTime: s.currentTime,
-      playbackRate: s.playbackRate, seq: ++this.seq,
+      v: 1,
+      type: "sync",
+      event,
+      playing: s.playing,
+      currentTime: s.currentTime,
+      playbackRate: s.playbackRate,
+      seq: ++this.seq,
     });
   }
 
@@ -60,9 +60,14 @@ export class SyncOrchestrator {
     this.lastReceiptMs = this.deps.now();
     const expected = this.projected();
     const tol = msg.event === "heartbeat" ? DEFAULTS.toleranceSec : 0;
-    await this.deps.controller.apply({
-      playing: msg.playing, currentTime: expected, playbackRate: msg.playbackRate,
-    }, tol);
+    await this.deps.controller.apply(
+      {
+        playing: msg.playing,
+        currentTime: expected,
+        playbackRate: msg.playbackRate,
+      },
+      tol,
+    );
   }
 
   async tick(): Promise<void> {
@@ -71,19 +76,30 @@ export class SyncOrchestrator {
     const local = this.deps.controller.readState();
     if (needsCorrection(local.currentTime, expected, DEFAULTS.toleranceSec)) {
       await this.deps.controller.apply(
-        { playing: this.lastState.playing, currentTime: expected, playbackRate: this.lastState.playbackRate },
+        {
+          playing: this.lastState.playing,
+          currentTime: expected,
+          playbackRate: this.lastState.playbackRate,
+        },
         DEFAULTS.toleranceSec,
       );
-    } else if (local.playing !== this.lastState.playing
-            || local.playbackRate !== this.lastState.playbackRate) {
+    } else if (
+      local.playing !== this.lastState.playing ||
+      local.playbackRate !== this.lastState.playbackRate
+    ) {
       await this.deps.controller.apply(
-        { playing: this.lastState.playing, currentTime: local.currentTime, playbackRate: this.lastState.playbackRate },
+        {
+          playing: this.lastState.playing,
+          currentTime: local.currentTime,
+          playbackRate: this.lastState.playbackRate,
+        },
         DEFAULTS.toleranceSec,
       );
     }
   }
 
   private projected(): number {
+    // biome-ignore lint/style/noNonNullAssertion: projected() is only called when lastState is set
     const s = this.lastState!;
     const elapsedSec = (this.deps.now() - this.lastReceiptMs) / 1000;
     return projectedHostTime(s, this.deps.client.oneWayLatencySec(), elapsedSec);

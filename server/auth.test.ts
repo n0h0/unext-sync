@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { checkConnectSecret } from "./src/auth";
 
 const SECRET = "a3f9c0d1e2b4a3f9c0d1e2b4";

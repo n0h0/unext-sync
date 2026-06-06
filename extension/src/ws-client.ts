@@ -1,6 +1,6 @@
+import type { ClientMessage, ServerMessage } from "../../shared/protocol";
+import { nextBackoffMs, oneWayLatencyFromRtt } from "../../shared/sync-core";
 import { parseServerMessageLoose } from "./parse-server";
-import { oneWayLatencyFromRtt, nextBackoffMs } from "../../shared/sync-core";
-import type { ServerMessage, ClientMessage } from "../../shared/protocol";
 
 export interface SocketLike {
   onopen: (() => void) | null;
@@ -29,7 +29,10 @@ export class WsClient {
   private readonly now: () => number;
   private readonly schedule: (fn: () => void, ms: number) => void;
 
-  constructor(_url: string, private deps: WsClientDeps) {
+  constructor(
+    _url: string,
+    private deps: WsClientDeps,
+  ) {
     this.now = deps.now ?? (() => Date.now());
     this.schedule = deps.schedule ?? ((fn, ms) => setTimeout(fn, ms));
   }
@@ -37,7 +40,9 @@ export class WsClient {
   connect(): void {
     const s = this.deps.factory();
     this.socket = s;
-    s.onopen = () => { this.onOpen?.(); };
+    s.onopen = () => {
+      this.onOpen?.();
+    };
     s.onmessage = (data) => {
       const msg = parseServerMessageLoose(data);
       if (!msg) return;

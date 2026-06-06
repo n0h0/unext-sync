@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { isTokenSafe } from "./secret";
 
 test("accepts hex output", () => {

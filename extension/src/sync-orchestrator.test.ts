@@ -1,7 +1,7 @@
-import { test, expect, vi } from "vitest";
-import { SyncOrchestrator } from "./sync-orchestrator";
+import { expect, test, vi } from "vitest";
 import type { StateMessage } from "../../shared/protocol";
 import { DEFAULTS } from "../../shared/sync-core";
+import { SyncOrchestrator } from "./sync-orchestrator";
 
 function deps(overrides: any = {}) {
   let t = 0;
@@ -9,11 +9,16 @@ function deps(overrides: any = {}) {
   const applied: any[] = [];
   return {
     now: () => t,
-    setNow: (v: number) => { t = v; },
-    sent, applied,
+    setNow: (v: number) => {
+      t = v;
+    },
+    sent,
+    applied,
     controller: {
       readState: () => ({ playing: true, currentTime: 100, playbackRate: 1 }),
-      apply: vi.fn(async (s: any) => { applied.push(s); }),
+      apply: vi.fn(async (s: any) => {
+        applied.push(s);
+      }),
       isApplying: () => false,
       ...overrides.controller,
     },
@@ -54,8 +59,10 @@ test("participant: applies fresh state and ignores stale seq", async () => {
 });
 
 test("participant tick corrects drift beyond tolerance using projected time", async () => {
-  const d = deps({ latency: 0.2,
-    controller: { readState: () => ({ playing: true, currentTime: 100, playbackRate: 1 }) } });
+  const d = deps({
+    latency: 0.2,
+    controller: { readState: () => ({ playing: true, currentTime: 100, playbackRate: 1 }) },
+  });
   const o = new SyncOrchestrator({ ...d, role: "participant" });
   d.setNow(1000);
   await o.onServerState(stateMsg(1, 100)); // 受信時刻1000, expected@receipt=100.2

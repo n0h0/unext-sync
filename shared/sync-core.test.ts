@@ -1,7 +1,11 @@
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import {
-  projectedHostTime, needsCorrection, isStaleSeq,
-  oneWayLatencyFromRtt, nextBackoffMs, DEFAULTS,
+  DEFAULTS,
+  isStaleSeq,
+  needsCorrection,
+  nextBackoffMs,
+  oneWayLatencyFromRtt,
+  projectedHostTime,
 } from "./sync-core";
 
 const playing = { playing: true, currentTime: 100, playbackRate: 1, seq: 1 };

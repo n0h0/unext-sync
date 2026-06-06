@@ -19,12 +19,13 @@ export function projectedHostTime(
   elapsedSinceReceiptSec: number,
 ): number {
   if (!state.playing) return state.currentTime;
-  return state.currentTime
-    + (oneWayLatencySec + elapsedSinceReceiptSec) * state.playbackRate;
+  return state.currentTime + (oneWayLatencySec + elapsedSinceReceiptSec) * state.playbackRate;
 }
 
 export function needsCorrection(
-  localTime: number, expected: number, toleranceSec: number,
+  localTime: number,
+  expected: number,
+  toleranceSec: number,
 ): boolean {
   return Math.abs(localTime - expected) > toleranceSec;
 }

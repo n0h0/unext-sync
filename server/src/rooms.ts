@@ -1,7 +1,6 @@
 import type { StateMessage, SyncMessage } from "../../shared/protocol";
 
-export type JoinOutcome =
-  | "joined-host" | "joined-participant" | "host_taken" | "no_room";
+export type JoinOutcome = "joined-host" | "joined-participant" | "host_taken" | "no_room";
 
 export interface JoinResult {
   outcome: JoinOutcome;
@@ -11,10 +10,10 @@ export interface JoinResult {
 interface Room {
   id: string;
   hostToken: string;
-  hostId: string | null;          // 現在接続中のホストclientId
+  hostId: string | null; // 現在接続中のホストclientId
   hostDisconnectedAt: number | null;
   lastState: StateMessage | null;
-  clients: Set<string>;           // ホストを含む全接続clientId
+  clients: Set<string>; // ホストを含む全接続clientId
 }
 
 export interface RoomManagerDeps {
@@ -32,15 +31,21 @@ export class RoomManager {
     const id = this.deps.genId();
     const hostToken = this.deps.genToken();
     this.rooms.set(id, {
-      id, hostToken, hostId: null, hostDisconnectedAt: null,
-      lastState: null, clients: new Set(),
+      id,
+      hostToken,
+      hostId: null,
+      hostDisconnectedAt: null,
+      lastState: null,
+      clients: new Set(),
     });
     return { roomId: id, hostToken };
   }
 
   join(
-    roomId: string, clientId: string,
-    role: "host" | "participant", hostToken?: string,
+    roomId: string,
+    clientId: string,
+    role: "host" | "participant",
+    hostToken?: string,
   ): JoinResult {
     const room = this.rooms.get(roomId);
     if (!room) return { outcome: "no_room", lastState: null };
@@ -61,14 +66,20 @@ export class RoomManager {
   }
 
   recordSync(
-    roomId: string, clientId: string, msg: SyncMessage,
+    roomId: string,
+    clientId: string,
+    msg: SyncMessage,
   ): { broadcastTo: string[]; state: StateMessage | null } {
     const room = this.rooms.get(roomId);
     if (!room || room.hostId !== clientId) return { broadcastTo: [], state: null };
     const state: StateMessage = {
-      v: msg.v, type: "state", event: msg.event,
-      playing: msg.playing, currentTime: msg.currentTime,
-      playbackRate: msg.playbackRate, seq: msg.seq,
+      v: msg.v,
+      type: "state",
+      event: msg.event,
+      playing: msg.playing,
+      currentTime: msg.currentTime,
+      playbackRate: msg.playbackRate,
+      seq: msg.seq,
     };
     room.lastState = state;
     const broadcastTo = [...room.clients].filter((c) => c !== clientId);
@@ -92,8 +103,11 @@ export class RoomManager {
     const released: string[] = [];
     const t = this.deps.now();
     for (const room of this.rooms.values()) {
-      if (room.hostId === null && room.hostDisconnectedAt !== null
-          && t - room.hostDisconnectedAt > this.deps.hostTimeoutMs) {
+      if (
+        room.hostId === null &&
+        room.hostDisconnectedAt !== null &&
+        t - room.hostDisconnectedAt > this.deps.hostTimeoutMs
+      ) {
         room.hostDisconnectedAt = null; // スロットは hostId=null のまま＝再取得可能
         released.push(room.id);
       }

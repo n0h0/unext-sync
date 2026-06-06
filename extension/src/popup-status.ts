@@ -1,13 +1,24 @@
 export type ConnState =
-  | "idle" | "connecting" | "connected" | "disconnected" | "host_gone" | "no_room";
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "host_gone"
+  | "no_room";
 
 export function renderStatusLabel(s: ConnState): string {
   switch (s) {
-    case "idle": return "未接続";
-    case "connecting": return "接続中";
-    case "connected": return "接続済み";
-    case "disconnected": return "切断";
-    case "host_gone": return "ホスト切断";
-    case "no_room": return "ルームが存在しません";
+    case "idle":
+      return "未接続";
+    case "connecting":
+      return "接続中";
+    case "connected":
+      return "接続済み";
+    case "disconnected":
+      return "切断";
+    case "host_gone":
+      return "ホスト切断";
+    case "no_room":
+      return "ルームが存在しません";
   }
 }

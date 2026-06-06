@@ -1,24 +1,31 @@
-import { test, expect, beforeEach } from "vitest";
-import { RoomManager } from "./src/rooms";
+import { beforeEach, expect, test } from "vitest";
 import type { SyncMessage } from "../shared/protocol";
+import { RoomManager } from "./src/rooms";
 
 let now = 1000;
 const clock = () => now;
 let idCounter = 0;
 let tokenCounter = 0;
-const genId = () => "room" + ++idCounter;
-const genToken = () => "tok" + ++tokenCounter;
+const genId = () => `room${++idCounter}`;
+const genToken = () => `tok${++tokenCounter}`;
 
 function makeSync(seq: number): SyncMessage {
   return {
-    v: 1, type: "sync", event: "heartbeat",
-    playing: true, currentTime: 10 + seq, playbackRate: 1, seq,
+    v: 1,
+    type: "sync",
+    event: "heartbeat",
+    playing: true,
+    currentTime: 10 + seq,
+    playbackRate: 1,
+    seq,
   };
 }
 
 let rm: RoomManager;
 beforeEach(() => {
-  now = 1000; idCounter = 0; tokenCounter = 0;
+  now = 1000;
+  idCounter = 0;
+  tokenCounter = 0;
   rm = new RoomManager({ now: clock, genId, genToken, hostTimeoutMs: 60000 });
 });
 

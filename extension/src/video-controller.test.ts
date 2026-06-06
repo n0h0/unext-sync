@@ -1,17 +1,23 @@
-import { test, expect, vi } from "vitest";
-import { VideoController, type MediaLike } from "./video-controller";
+import { expect, test, vi } from "vitest";
+import { type MediaLike, VideoController } from "./video-controller";
 
 function fakeMedia(init: Partial<MediaLike> = {}): MediaLike & { _play: any; _pause: any } {
   const m: any = {
     currentTime: init.currentTime ?? 0,
     playbackRate: init.playbackRate ?? 1,
     paused: init.paused ?? true,
-    play: vi.fn(() => { m.paused = false; return Promise.resolve(); }),
-    pause: vi.fn(() => { m.paused = true; }),
+    play: vi.fn(() => {
+      m.paused = false;
+      return Promise.resolve();
+    }),
+    pause: vi.fn(() => {
+      m.paused = true;
+    }),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   };
-  m._play = m.play; m._pause = m.pause;
+  m._play = m.play;
+  m._pause = m.pause;
   return m;
 }
 

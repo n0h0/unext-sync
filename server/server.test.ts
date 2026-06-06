@@ -1,11 +1,14 @@
-import { test, expect, afterEach } from "vitest";
+import { afterEach, expect, test } from "vitest";
 import { WebSocket } from "ws";
 import { startServer } from "./src/server";
 
 const TEST_SECRET = "testsecrettoken0123";
 
 let stop: (() => Promise<void>) | null = null;
-afterEach(async () => { if (stop) await stop(); stop = null; });
+afterEach(async () => {
+  if (stop) await stop();
+  stop = null;
+});
 
 function reader(ws: WebSocket) {
   const queue: any[] = [];
@@ -13,7 +16,8 @@ function reader(ws: WebSocket) {
   ws.on("message", (d) => {
     const msg = JSON.parse(d.toString());
     const w = waiters.shift();
-    if (w) w(msg); else queue.push(msg);
+    if (w) w(msg);
+    else queue.push(msg);
   });
   return {
     next(): Promise<any> {
@@ -53,7 +57,13 @@ test("host sync is broadcast to participant", async () => {
   const { ws: host, r: hostR } = await connect(port);
   send(host, { v: 1, type: "create" });
   const created = await hostR.next();
-  send(host, { v: 1, type: "join", roomId: created.roomId, role: "host", hostToken: created.hostToken });
+  send(host, {
+    v: 1,
+    type: "join",
+    roomId: created.roomId,
+    role: "host",
+    hostToken: created.hostToken,
+  });
   await hostR.next(); // joined
 
   const { ws: guest, r: guestR } = await connect(port);
@@ -61,8 +71,13 @@ test("host sync is broadcast to participant", async () => {
   await guestR.next(); // joined
 
   send(host, {
-    v: 1, type: "sync", event: "seek",
-    playing: true, currentTime: 345.8, playbackRate: 1, seq: 1,
+    v: 1,
+    type: "sync",
+    event: "seek",
+    playing: true,
+    currentTime: 345.8,
+    playbackRate: 1,
+    seq: 1,
   });
   const state = await guestR.next();
   expect(state).toMatchObject({ type: "state", event: "seek", currentTime: 345.8, seq: 1 });
@@ -74,9 +89,23 @@ test("late participant immediately receives lastState", async () => {
   const { ws: host, r: hostR } = await connect(port);
   send(host, { v: 1, type: "create" });
   const created = await hostR.next();
-  send(host, { v: 1, type: "join", roomId: created.roomId, role: "host", hostToken: created.hostToken });
+  send(host, {
+    v: 1,
+    type: "join",
+    roomId: created.roomId,
+    role: "host",
+    hostToken: created.hostToken,
+  });
   await hostR.next();
-  send(host, { v: 1, type: "sync", event: "play", playing: true, currentTime: 50, playbackRate: 1, seq: 1 });
+  send(host, {
+    v: 1,
+    type: "sync",
+    event: "play",
+    playing: true,
+    currentTime: 50,
+    playbackRate: 1,
+    seq: 1,
+  });
 
   const { ws: late, r: lateR } = await connect(port);
   send(late, { v: 1, type: "join", roomId: created.roomId, role: "participant" });
@@ -92,7 +121,13 @@ test("second host with wrong token gets host_taken", async () => {
   const { ws: host, r: hostR } = await connect(port);
   send(host, { v: 1, type: "create" });
   const created = await hostR.next();
-  send(host, { v: 1, type: "join", roomId: created.roomId, role: "host", hostToken: created.hostToken });
+  send(host, {
+    v: 1,
+    type: "join",
+    roomId: created.roomId,
+    role: "host",
+    hostToken: created.hostToken,
+  });
   await hostR.next();
 
   const { ws: imposter, r: imposterR } = await connect(port);

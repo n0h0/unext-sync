@@ -1,12 +1,9 @@
-import { WebSocketServer, WebSocket } from "ws";
 import { randomUUID } from "node:crypto";
-import {
-  parseClientMessage, PROTOCOL_VERSION,
-  type ServerMessage,
-} from "../../shared/protocol";
-import { RoomManager } from "./rooms";
-import { checkConnectSecret } from "./auth";
+import { type WebSocket, WebSocketServer } from "ws";
+import { PROTOCOL_VERSION, parseClientMessage, type ServerMessage } from "../../shared/protocol";
 import { isTokenSafe } from "../../shared/secret";
+import { checkConnectSecret } from "./auth";
+import { RoomManager } from "./rooms";
 
 interface ClientCtx {
   id: string;
@@ -56,9 +53,7 @@ export async function startServer(
     port,
     verifyClient: (info, cb) => {
       const raw = info.req.headers["sec-websocket-protocol"];
-      const presented = (typeof raw === "string" ? raw : "")
-        .split(",")[0]
-        ?.trim();
+      const presented = (typeof raw === "string" ? raw : "").split(",")[0]?.trim();
       if (checkConnectSecret(presented, connectSecret)) cb(true);
       else cb(false, 401, "Unauthorized");
     },
@@ -74,9 +69,7 @@ export async function startServer(
     }
     return undefined;
   };
-  const broadcastHostStatus = (
-    roomId: string, type: "host_disconnected" | "host_resumed",
-  ) => {
+  const broadcastHostStatus = (roomId: string, type: "host_disconnected" | "host_resumed") => {
     for (const cid of rooms.participantsOf(roomId)) {
       const sock = findSocket(cid);
       if (sock) send(sock, { v: PROTOCOL_VERSION, type });
@@ -88,11 +81,16 @@ export async function startServer(
     ctxOf.set(ws, ctx);
     log("connect", ctx.id);
 
-    ws.on("pong", () => { ctx.isAlive = true; });
+    ws.on("pong", () => {
+      ctx.isAlive = true;
+    });
 
     ws.on("message", (data) => {
       const msg = parseClientMessage(data.toString());
-      if (!msg) { log("error", "bad message from", ctx.id); return; }
+      if (!msg) {
+        log("error", "bad message from", ctx.id);
+        return;
+      }
 
       switch (msg.type) {
         case "ping":
@@ -105,13 +103,17 @@ export async function startServer(
         }
         case "join": {
           const r = rooms.join(msg.roomId, ctx.id, msg.role, msg.hostToken);
-          if (r.outcome === "no_room") { send(ws, { v: PROTOCOL_VERSION, type: "no_room" }); return; }
+          if (r.outcome === "no_room") {
+            send(ws, { v: PROTOCOL_VERSION, type: "no_room" });
+            return;
+          }
           ctx.roomId = msg.roomId;
           if (r.outcome === "host_taken") {
             send(ws, { v: PROTOCOL_VERSION, type: "host_taken" });
           } else {
             send(ws, {
-              v: PROTOCOL_VERSION, type: "joined",
+              v: PROTOCOL_VERSION,
+              type: "joined",
               role: r.outcome === "joined-host" ? "host" : "participant",
             });
             if (r.outcome === "joined-host") broadcastHostStatus(msg.roomId, "host_resumed");
@@ -149,7 +151,10 @@ export async function startServer(
     for (const ws of wss.clients) {
       const ctx = ctxOf.get(ws);
       if (!ctx) continue;
-      if (!ctx.isAlive) { ws.terminate(); continue; }
+      if (!ctx.isAlive) {
+        ws.terminate();
+        continue;
+      }
       ctx.isAlive = false;
       ws.ping();
     }
@@ -173,6 +178,9 @@ export async function startServer(
 }
 
 // 直接起動された場合（Render等）
-if (process.argv[1] && process.argv[1].endsWith("server.js")) {
-  startServer().catch((e) => { console.error(e); process.exit(1); });
+if (process.argv[1]?.endsWith("server.js")) {
+  startServer().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
 }

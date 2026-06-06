@@ -1,9 +1,9 @@
+import type { ServerMessage, SyncEvent } from "../../shared/protocol";
+import { DEFAULTS } from "../../shared/sync-core";
+import { CONNECT_SECRET, SERVER_URL } from "./config";
+import { SyncOrchestrator } from "./sync-orchestrator";
 import { VideoController } from "./video-controller";
 import { WsClient } from "./ws-client";
-import { SyncOrchestrator } from "./sync-orchestrator";
-import { DEFAULTS } from "../../shared/sync-core";
-import { SERVER_URL, CONNECT_SECRET } from "./config";
-import type { ServerMessage, SyncEvent } from "../../shared/protocol";
 
 // Shadow DOM/通常DOMを再帰探索（PoCの到達方法に合わせる）。
 function deepFindVideo(root: Document | ShadowRoot): HTMLVideoElement | null {
@@ -25,13 +25,20 @@ function waitForVideo(): Promise<HTMLVideoElement> {
     if (found) return resolve(found);
     const mo = new MutationObserver(() => {
       const v = deepFindVideo(document);
-      if (v) { mo.disconnect(); resolve(v); }
+      if (v) {
+        mo.disconnect();
+        resolve(v);
+      }
     });
     mo.observe(document.documentElement, { childList: true, subtree: true });
   });
 }
 
-interface Session { roomId: string; role: "host" | "participant"; hostToken?: string; }
+interface Session {
+  roomId: string;
+  role: "host" | "participant";
+  hostToken?: string;
+}
 let started = false;
 
 async function start(session: Session): Promise<void> {
@@ -45,11 +52,19 @@ async function start(session: Session): Promise<void> {
   function makeBrowserSocket(url: string) {
     const raw = new WebSocket(url, [CONNECT_SECRET]);
     return {
-      get readyState() { return raw.readyState; },
+      get readyState() {
+        return raw.readyState;
+      },
       send: (d: string) => raw.send(d),
       close: () => raw.close(),
-      set onopen(fn: (() => void) | null) { raw.onopen = fn as any; },
-      set onclose(fn: (() => void) | null) { raw.onclose = fn as any; },
+      set onopen(fn: (() => void) | null) {
+        // biome-ignore lint/suspicious/noExplicitAny: bridging browser WebSocket handler types
+        raw.onopen = fn as any;
+      },
+      set onclose(fn: (() => void) | null) {
+        // biome-ignore lint/suspicious/noExplicitAny: bridging browser WebSocket handler types
+        raw.onclose = fn as any;
+      },
       set onmessage(fn: ((data: string) => void) | null) {
         raw.onmessage = fn ? (ev: MessageEvent) => fn(String(ev.data)) : null;
       },
@@ -69,7 +84,13 @@ async function start(session: Session): Promise<void> {
         session.hostToken = msg.hostToken;
         session.roomId = msg.roomId;
         chrome.runtime.sendMessage({ type: "room_created", roomId: msg.roomId }).catch(() => {});
-        client.send({ v: 1, type: "join", roomId: msg.roomId, role: "host", hostToken: msg.hostToken });
+        client.send({
+          v: 1,
+          type: "join",
+          roomId: msg.roomId,
+          role: "host",
+          hostToken: msg.hostToken,
+        });
         break;
       case "state":
         void orchestrator.onServerState(msg);
@@ -81,7 +102,9 @@ async function start(session: Session): Promise<void> {
   }
 
   orchestrator = new SyncOrchestrator({
-    role: session.role, controller, client,
+    role: session.role,
+    controller,
+    client,
     now: () => performance.now(),
   });
 
@@ -90,8 +113,11 @@ async function start(session: Session): Promise<void> {
       client.send({ v: 1, type: "create" });
     } else {
       client.send({
-        v: 1, type: "join", roomId: session.roomId,
-        role: session.role, hostToken: session.hostToken,
+        v: 1,
+        type: "join",
+        roomId: session.roomId,
+        role: session.role,
+        hostToken: session.hostToken,
       });
     }
   };
@@ -103,15 +129,20 @@ async function start(session: Session): Promise<void> {
   if (session.role === "host") {
     const eventMap: Record<string, SyncEvent> = { seeked: "seek" };
     for (const dom of ["play", "pause", "seeked", "ratechange"]) {
-      video.addEventListener(dom, () => orchestrator.onMediaEvent(eventMap[dom] ?? (dom as SyncEvent)));
+      video.addEventListener(dom, () =>
+        orchestrator.onMediaEvent(eventMap[dom] ?? (dom as SyncEvent)),
+      );
     }
     let lastBeat = 0;
     const beat = () => {
       const t = performance.now();
-      if (t - lastBeat >= DEFAULTS.heartbeatMs) { lastBeat = t; orchestrator.heartbeat(); }
+      if (t - lastBeat >= DEFAULTS.heartbeatMs) {
+        lastBeat = t;
+        orchestrator.heartbeat();
+      }
     };
     video.addEventListener("timeupdate", beat); // 前面では主にこちら
-    setInterval(beat, DEFAULTS.heartbeatMs);    // バックグラウンドのスロットリング時の従
+    setInterval(beat, DEFAULTS.heartbeatMs); // バックグラウンドのスロットリング時の従
   } else {
     // 参加者：定期tickでドリフト補正＋自分の誤操作を即リコンサイル。
     setInterval(() => void orchestrator.tick(), DEFAULTS.heartbeatMs);

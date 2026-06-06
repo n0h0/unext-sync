@@ -1,5 +1,5 @@
-import { test, expect } from "vitest";
-import { renderStatusLabel, type ConnState } from "./popup-status";
+import { expect, test } from "vitest";
+import { type ConnState, renderStatusLabel } from "./popup-status";
 
 test("maps connection states to Japanese labels", () => {
   const cases: [ConnState, string][] = [
