@@ -1,4 +1,4 @@
-import type { ServerMessage, SyncEvent } from "../../shared/protocol";
+import type { RosterEntry, ServerMessage, SyncEvent } from "../../shared/protocol";
 import { DEFAULTS } from "../../shared/sync-core";
 import { CONNECT_SECRET, SERVER_URL } from "./config";
 import { type ConnState, nextStateForServerEvent } from "./popup-status";
@@ -39,12 +39,15 @@ interface Session {
   roomId: string;
   role: "host" | "participant";
   hostToken?: string;
+  name?: string;
 }
 let started = false;
 // popup は開くたびに破棄される一時コンテキストなので、接続状態の source of truth は
 // タブと共に生き続けるこの content script が持つ。popup は開いた瞬間に get_status で問い合わせる。
 let currentStatus: ConnState = "idle";
 let currentRoomId: string | null = null;
+let currentRoster: RosterEntry[] = [];
+let currentSelfId: string | null = null;
 
 async function start(session: Session): Promise<void> {
   if (started) return;
@@ -97,12 +100,27 @@ async function start(session: Session): Promise<void> {
           roomId: msg.roomId,
           role: "host",
           hostToken: msg.hostToken,
+          name: session.name,
         });
         break;
       case "state":
         void orchestrator.onServerState(msg);
         break;
-      // host_taken / host_disconnected / host_resumed はpopupへ転送（status更新）
+      case "joined":
+      case "host_taken": {
+        currentSelfId = msg.clientId;
+        const next = nextStateForServerEvent(msg.type);
+        if (next) currentStatus = next;
+        chrome.runtime.sendMessage({ type: "server_event", event: msg.type }).catch(() => {});
+        break;
+      }
+      case "roster":
+        currentRoster = msg.participants;
+        chrome.runtime
+          .sendMessage({ type: "roster", participants: msg.participants, selfId: currentSelfId })
+          .catch(() => {});
+        break;
+      // host_disconnected / host_resumed / no_room はpopupへ転送（status更新）
       default: {
         const next = nextStateForServerEvent(msg.type);
         if (next) currentStatus = next;
@@ -128,6 +146,7 @@ async function start(session: Session): Promise<void> {
         roomId: session.roomId,
         role: session.role,
         hostToken: session.hostToken,
+        name: session.name,
       });
     }
   };
@@ -168,10 +187,15 @@ async function start(session: Session): Promise<void> {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "start_session") {
     currentStatus = "connecting";
-    void start({ roomId: msg.roomId, role: msg.role });
+    void start({ roomId: msg.roomId, role: msg.role, name: msg.name });
     return;
   }
   if (msg?.type === "get_status") {
-    sendResponse({ status: currentStatus, roomId: currentRoomId });
+    sendResponse({
+      status: currentStatus,
+      roomId: currentRoomId,
+      roster: currentRoster,
+      selfId: currentSelfId,
+    });
   }
 });
