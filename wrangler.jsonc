@@ -9,5 +9,7 @@
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["RoomDurableObject"] }
   ],
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false
 }
