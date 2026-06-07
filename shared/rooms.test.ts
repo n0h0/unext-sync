@@ -1,5 +1,11 @@
 import { beforeEach, expect, test } from "vitest";
-import { freshPersistent, makeRoomLogic, normalizeName, normalizeText, type RoomState } from "./rooms";
+import {
+  freshPersistent,
+  makeRoomLogic,
+  normalizeName,
+  normalizeText,
+  type RoomState,
+} from "./rooms";
 
 let nowVal = 1000;
 const deps = {
@@ -59,20 +65,32 @@ test("applyJoin host with wrong token falls back to host_taken", () => {
   logic.applyJoin(st, "c1", 1, "host", "tok");
   const r = logic.applyJoin(st, "c2", 2, "host", "WRONG");
   expect(r.outcome).toBe("host_taken");
-  expect(r.effects).toContainEqual({ kind: "send", to: "c2", msg: { v: 2, type: "host_taken", clientId: "c2" } });
+  expect(r.effects).toContainEqual({
+    kind: "send",
+    to: "c2",
+    msg: { v: 2, type: "host_taken", clientId: "c2" },
+  });
 });
 
 test("applyJoin participant gets lastState and contentKey", () => {
   const st = emptyRoom("tok");
   logic.applyJoin(st, "c1", 1, "host", "tok");
   logic.applySync(st, "c1", {
-    v: 2, type: "sync", event: "heartbeat", playing: true, currentTime: 11, playbackRate: 1, seq: 1,
+    v: 2,
+    type: "sync",
+    event: "heartbeat",
+    playing: true,
+    currentTime: 11,
+    playbackRate: 1,
+    seq: 1,
     contentKey: "SID0234926/ED00720092",
   });
   const r = logic.applyJoin(st, "c2", 2, "participant");
   expect(r.outcome).toBe("joined-participant");
   const sent = r.effects.find((e) => e.kind === "send" && e.to === "c2" && e.msg.type === "state");
-  expect(sent && sent.kind === "send" && sent.msg.type === "state" && sent.msg.contentKey).toBe("SID0234926/ED00720092");
+  expect(sent && sent.kind === "send" && sent.msg.type === "state" && sent.msg.contentKey).toBe(
+    "SID0234926/ED00720092",
+  );
 });
 
 test("applyJoin empty name yields ゲスト- guest name", () => {
@@ -88,7 +106,15 @@ test("applyJoin always broadcasts roster", () => {
 });
 
 function syncMsg(seq: number) {
-  return { v: 2 as const, type: "sync" as const, event: "heartbeat" as const, playing: true, currentTime: 10 + seq, playbackRate: 1, seq };
+  return {
+    v: 2 as const,
+    type: "sync" as const,
+    event: "heartbeat" as const,
+    playing: true,
+    currentTime: 10 + seq,
+    playbackRate: 1,
+    seq,
+  };
 }
 
 test("applySync from host broadcasts state excluding host, stores lastState", () => {
@@ -96,7 +122,22 @@ test("applySync from host broadcasts state excluding host, stores lastState", ()
   logic.applyJoin(st, "c1", 1, "host", "tok");
   logic.applyJoin(st, "c2", 2, "participant");
   const r = logic.applySync(st, "c1", syncMsg(1));
-  expect(r.effects).toEqual([{ kind: "broadcast", exclude: "c1", msg: { v: 2, type: "state", event: "heartbeat", playing: true, currentTime: 11, playbackRate: 1, seq: 1, contentKey: undefined } }]);
+  expect(r.effects).toEqual([
+    {
+      kind: "broadcast",
+      exclude: "c1",
+      msg: {
+        v: 2,
+        type: "state",
+        event: "heartbeat",
+        playing: true,
+        currentTime: 11,
+        playbackRate: 1,
+        seq: 1,
+        contentKey: undefined,
+      },
+    },
+  ]);
   expect(r.state.persistent.lastState?.seq).toBe(1);
 });
 
@@ -113,7 +154,9 @@ test("applyTitle: only host, normalized, idempotent, rejects empty", () => {
   logic.applyJoin(st, "c2", 2, "participant");
   expect(logic.applyTitle(st, "c2", "作品名").effects).toEqual([]); // 非ホスト
   const r = logic.applyTitle(st, "c1", "  作品名 第3話  ");
-  expect(r.effects).toEqual([{ kind: "broadcast", msg: { v: 2, type: "room_title", title: "作品名 第3話" } }]);
+  expect(r.effects).toEqual([
+    { kind: "broadcast", msg: { v: 2, type: "room_title", title: "作品名 第3話" } },
+  ]);
   expect(logic.applyTitle(st, "c1", "作品名 第3話").effects).toEqual([]); // 同値
   expect(logic.applyTitle(st, "c1", "   ").effects).toEqual([]); // 空
 });
@@ -167,7 +210,12 @@ test("rosterOf shows synthetic disconnected host row during hold, dropped after 
   logic.applyJoin(st, "h", 1, "host", "tok", "たろう");
   logic.applyJoin(st, "p", 2, "participant", undefined, "はなこ");
   logic.removeClient(st, "h");
-  expect(logic.rosterOf(st)[0]).toEqual({ id: "__host__", name: "たろう", host: true, connected: false });
+  expect(logic.rosterOf(st)[0]).toEqual({
+    id: "__host__",
+    name: "たろう",
+    host: true,
+    connected: false,
+  });
   logic.sweepTimers(st, 61001);
   expect(logic.rosterOf(st).some((e) => e.host)).toBe(false);
 });

@@ -1,4 +1,9 @@
-import { PROTOCOL_VERSION, type StateMessage, type SyncEvent, type SyncMessage } from "../../shared/protocol";
+import {
+  PROTOCOL_VERSION,
+  type StateMessage,
+  type SyncEvent,
+  type SyncMessage,
+} from "../../shared/protocol";
 import { DEFAULTS, isStaleSeq, needsCorrection, projectedHostTime } from "../../shared/sync-core";
 import type { ReadableState } from "./video-controller";
 

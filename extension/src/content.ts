@@ -1,4 +1,9 @@
-import { PROTOCOL_VERSION, type RosterEntry, type ServerMessage, type SyncEvent } from "../../shared/protocol";
+import {
+  PROTOCOL_VERSION,
+  type RosterEntry,
+  type ServerMessage,
+  type SyncEvent,
+} from "../../shared/protocol";
 import { DEFAULTS } from "../../shared/sync-core";
 import { CONNECT_SECRET, httpBaseFrom, SERVER_URL } from "./config";
 import { deriveContentKey } from "./content-key";
@@ -186,7 +191,9 @@ async function start(session: Session): Promise<void> {
       chrome.runtime.sendMessage({ type: "room_created", roomId: data.roomId }).catch(() => {});
     } catch {
       currentStatus = "disconnected";
-      chrome.runtime.sendMessage({ type: "server_event", event: "host_disconnected" }).catch(() => {});
+      chrome.runtime
+        .sendMessage({ type: "server_event", event: "host_disconnected" })
+        .catch(() => {});
       started = false; // 作成失敗時はセッションを開始済みにせず、popup から再試行できるようにする
       return;
     }

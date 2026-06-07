@@ -1,5 +1,6 @@
 import { isTokenSafe } from "../../shared/secret";
 import { isWsUrl } from "../../shared/server-url";
+
 export { httpBaseFrom } from "../../shared/server-url";
 
 // ビルド時に build.mjs が esbuild define で実値へ置換する。

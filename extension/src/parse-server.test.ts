@@ -31,5 +31,7 @@ test("parses a room_title message (regression: room_title must not be dropped)",
 });
 
 test("created is no longer accepted", () => {
-  expect(parseServerMessageLoose(JSON.stringify({ v: 2, type: "created", roomId: "r", hostToken: "t" }))).toBeNull();
+  expect(
+    parseServerMessageLoose(JSON.stringify({ v: 2, type: "created", roomId: "r", hostToken: "t" })),
+  ).toBeNull();
 });

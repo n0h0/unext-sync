@@ -1,4 +1,4 @@
-import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from "../../shared/protocol";
+import { type ClientMessage, PROTOCOL_VERSION, type ServerMessage } from "../../shared/protocol";
 import { nextBackoffMs, oneWayLatencyFromRtt } from "../../shared/sync-core";
 import { parseServerMessageLoose } from "./parse-server";
 

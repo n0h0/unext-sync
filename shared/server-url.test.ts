@@ -19,6 +19,8 @@ test("rejects missing scheme and malformed values", () => {
 });
 
 test("httpBaseFrom maps wss→https and ws→http", () => {
-  expect(httpBaseFrom("wss://unext-sync.example.workers.dev")).toBe("https://unext-sync.example.workers.dev");
+  expect(httpBaseFrom("wss://unext-sync.example.workers.dev")).toBe(
+    "https://unext-sync.example.workers.dev",
+  );
   expect(httpBaseFrom("ws://localhost:8787")).toBe("http://localhost:8787");
 });

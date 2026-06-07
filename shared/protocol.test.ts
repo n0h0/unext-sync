@@ -28,7 +28,9 @@ test("parses a valid sync message", () => {
 
 test("parses join", () => {
   expect(
-    parseClientMessage(JSON.stringify({ v: 2, type: "join", roomId: "r", role: "host", hostToken: "t" })),
+    parseClientMessage(
+      JSON.stringify({ v: 2, type: "join", roomId: "r", role: "host", hostToken: "t" }),
+    ),
   ).toEqual({ v: 2, type: "join", roomId: "r", role: "host", hostToken: "t", name: undefined });
 });
 

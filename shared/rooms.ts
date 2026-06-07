@@ -1,4 +1,10 @@
-import { PROTOCOL_VERSION, type RosterEntry, type ServerMessage, type StateMessage, type SyncMessage } from "./protocol";
+import {
+  PROTOCOL_VERSION,
+  type RosterEntry,
+  type ServerMessage,
+  type StateMessage,
+  type SyncMessage,
+} from "./protocol";
 
 const MAX_NAME_LEN = 24;
 const MAX_TITLE_LEN = 120;
@@ -90,7 +96,8 @@ function rosterOf(state: RoomState): RosterEntry[] {
 
 function earliestDeadline(p: PersistentState, hostTimeoutMs: number): number | null {
   const deadlines: number[] = [];
-  if (p.hostId === null && p.hostDisconnectedAt !== null) deadlines.push(p.hostDisconnectedAt + hostTimeoutMs);
+  if (p.hostId === null && p.hostDisconnectedAt !== null)
+    deadlines.push(p.hostDisconnectedAt + hostTimeoutMs);
   if (p.emptiedAt !== null) deadlines.push(p.emptiedAt + hostTimeoutMs);
   return deadlines.length ? Math.min(...deadlines) : null;
 }
@@ -105,8 +112,16 @@ export interface RoomLogic {
     hostToken?: string,
     name?: string,
   ): { state: RoomState; effects: Effect[]; outcome: JoinOutcome };
-  applySync(state: RoomState, clientId: string, msg: SyncMessage): { state: RoomState; effects: Effect[] };
-  applyTitle(state: RoomState, clientId: string, rawTitle: unknown): { state: RoomState; effects: Effect[] };
+  applySync(
+    state: RoomState,
+    clientId: string,
+    msg: SyncMessage,
+  ): { state: RoomState; effects: Effect[] };
+  applyTitle(
+    state: RoomState,
+    clientId: string,
+    rawTitle: unknown,
+  ): { state: RoomState; effects: Effect[] };
   removeClient(state: RoomState, clientId: string): { state: RoomState; effects: Effect[] };
   sweepTimers(state: RoomState, now: number): { state: RoomState; effects: Effect[] };
 }
@@ -141,23 +156,43 @@ export function makeRoomLogic(deps: RoomDeps): RoomLogic {
         attachment: { clientId, name: cleanName, isHost, joined: true, joinedAt },
       });
       if (outcome === "host_taken") {
-        effects.push({ kind: "send", to: clientId, msg: { v: PROTOCOL_VERSION, type: "host_taken", clientId } });
+        effects.push({
+          kind: "send",
+          to: clientId,
+          msg: { v: PROTOCOL_VERSION, type: "host_taken", clientId },
+        });
       } else {
         effects.push({
           kind: "send",
           to: clientId,
-          msg: { v: PROTOCOL_VERSION, type: "joined", role: isHost ? "host" : "participant", clientId },
+          msg: {
+            v: PROTOCOL_VERSION,
+            type: "joined",
+            role: isHost ? "host" : "participant",
+            clientId,
+          },
         });
         if (outcome === "joined-host") {
-          effects.push({ kind: "broadcast", exclude: clientId, msg: { v: PROTOCOL_VERSION, type: "host_resumed" } });
+          effects.push({
+            kind: "broadcast",
+            exclude: clientId,
+            msg: { v: PROTOCOL_VERSION, type: "host_resumed" },
+          });
         }
       }
       if (outcome === "joined-participant" && p.lastState) {
         effects.push({ kind: "send", to: clientId, msg: p.lastState });
       }
-      effects.push({ kind: "broadcast", msg: { v: PROTOCOL_VERSION, type: "roster", participants: rosterOf(state) } });
+      effects.push({
+        kind: "broadcast",
+        msg: { v: PROTOCOL_VERSION, type: "roster", participants: rosterOf(state) },
+      });
       if (p.hostTitle !== null) {
-        effects.push({ kind: "send", to: clientId, msg: { v: PROTOCOL_VERSION, type: "room_title", title: p.hostTitle } });
+        effects.push({
+          kind: "send",
+          to: clientId,
+          msg: { v: PROTOCOL_VERSION, type: "room_title", title: p.hostTitle },
+        });
       }
       return { state, effects, outcome };
     },
@@ -183,7 +218,10 @@ export function makeRoomLogic(deps: RoomDeps): RoomLogic {
       const title = normalizeText(rawTitle, MAX_TITLE_LEN);
       if (title === "" || title === p.hostTitle) return { state, effects: [] };
       p.hostTitle = title;
-      return { state, effects: [{ kind: "broadcast", msg: { v: PROTOCOL_VERSION, type: "room_title", title } }] };
+      return {
+        state,
+        effects: [{ kind: "broadcast", msg: { v: PROTOCOL_VERSION, type: "room_title", title } }],
+      };
     },
     removeClient(state, clientId) {
       const p = state.persistent;
@@ -192,10 +230,16 @@ export function makeRoomLogic(deps: RoomDeps): RoomLogic {
       if (p.hostId === clientId) {
         p.hostId = null;
         p.hostDisconnectedAt = deps.now();
-        effects.push({ kind: "broadcast", msg: { v: PROTOCOL_VERSION, type: "host_disconnected" } });
+        effects.push({
+          kind: "broadcast",
+          msg: { v: PROTOCOL_VERSION, type: "host_disconnected" },
+        });
       }
       if (state.clients.size === 0) p.emptiedAt = deps.now();
-      effects.push({ kind: "broadcast", msg: { v: PROTOCOL_VERSION, type: "roster", participants: rosterOf(state) } });
+      effects.push({
+        kind: "broadcast",
+        msg: { v: PROTOCOL_VERSION, type: "roster", participants: rosterOf(state) },
+      });
       const at = earliestDeadline(p, deps.hostTimeoutMs);
       if (at !== null) effects.push({ kind: "setAlarm", at });
       return { state, effects };
@@ -204,16 +248,27 @@ export function makeRoomLogic(deps: RoomDeps): RoomLogic {
       const p = state.persistent;
       const effects: Effect[] = [];
       let rosterChanged = false;
-      if (p.hostId === null && p.hostDisconnectedAt !== null && now - p.hostDisconnectedAt > deps.hostTimeoutMs) {
+      if (
+        p.hostId === null &&
+        p.hostDisconnectedAt !== null &&
+        now - p.hostDisconnectedAt > deps.hostTimeoutMs
+      ) {
         p.hostDisconnectedAt = null;
         p.hostName = null;
         rosterChanged = true;
       }
-      if (state.clients.size === 0 && p.emptiedAt !== null && now - p.emptiedAt > deps.hostTimeoutMs) {
+      if (
+        state.clients.size === 0 &&
+        p.emptiedAt !== null &&
+        now - p.emptiedAt > deps.hostTimeoutMs
+      ) {
         return { state, effects: [{ kind: "clearStorage" }] };
       }
       if (rosterChanged) {
-        effects.push({ kind: "broadcast", msg: { v: PROTOCOL_VERSION, type: "roster", participants: rosterOf(state) } });
+        effects.push({
+          kind: "broadcast",
+          msg: { v: PROTOCOL_VERSION, type: "roster", participants: rosterOf(state) },
+        });
       }
       const at = earliestDeadline(p, deps.hostTimeoutMs);
       if (at !== null) effects.push({ kind: "setAlarm", at });
