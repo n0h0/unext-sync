@@ -43,6 +43,23 @@ Phase 2 の他の3機能との関係：
 - `Room` に **`hostName: string | null`** を追加。ホスト切断の保持期間中（`hostId === null` かつ `hostDisconnectedAt !== null`）も「👑 <名前> (切断)」行を出し続けるため、名前を覚えておく。
 - ロールは派生で判定する（`clientId === hostId` ⇔ ホスト）。専用フィールドは増やさない。
 
+#### `Set → Map` に伴う既存呼び出し箇所の修正（漏らさないこと）
+
+`clients` を Set 前提で走査している既存コードを全て直す。特に `[...room.clients]` は Map では `[key, value]` ペア配列になり、`string[]` を期待するブロードキャストが**コンパイルは通るがサイレントに壊れる**。
+
+| 箇所 | 現状 | Map化後 |
+|---|---|---|
+| `join`（`rooms.ts:52`） | `room.clients.add(clientId)` | `room.clients.set(clientId, { name })` |
+| `recordSync`（`rooms.ts:85`） | `[...room.clients].filter(...)` | `[...room.clients.keys()].filter(...)` |
+| `participantsOf`（`rooms.ts:121`） | `[...room.clients].filter(...)` | `[...room.clients.keys()].filter(...)` |
+| `deleteIfEmpty`（`rooms.ts:126`） | `room.clients.size === 0` | 変更不要（`.size` は Map でも有効） |
+
+#### `join()` シグネチャと名前の格納
+
+- `join(roomId, clientId, role, hostToken?, name?)` に拡張する。
+- §「名前の正規化」を `join` の入口で適用し、**outcome を問わず**（`joined-host` / `joined-participant` / `host_taken` フォールバックのいずれでも）正規化済み name を `ClientInfo` に格納する。`host_taken` でも参加者として `clients` に乗る（`rooms.ts:52`）ため名前が要る。
+- host 確定時（`joined-host`）は同じ正規化済み name を `hostName` にも保存する（切断保持中の合成行で使う）。
+
 ### 名前の正規化（サーバー側）
 
 `join` で受け取った `name` を以下で正規化してから保存する。実装は純粋関数として切り出し、`rooms.ts` から使う。
@@ -55,13 +72,13 @@ Phase 2 の他の3機能との関係：
 ### 新メソッド `rosterOf(roomId): RosterEntry[]`（純粋）
 
 - 戻り値の先頭が**ホスト行**、続けて参加者行（`clients` の挿入順）。
-- `clients` に居る各 clientId → `{ id, name, host: id === hostId, connected: true }`。
-- ホスト保持中（`hostId === null && hostName !== null && hostDisconnectedAt !== null`）は、合成のホスト行 `{ id: "__host__", name: hostName, host: true, connected: false }` を先頭に加える。id は実 clientId（`randomUUID`）と衝突しない固定センチネルを使う。
+- ホスト接続中は**ホストも `clients` に居る**ため、二重に出さないこと。手順：(1) `hostId` の clientId を `clients` から取り出して `{ id: hostId, name, host: true, connected: true }` を先頭に置く、(2) **残りの clientId**（`id !== hostId`）を挿入順で `{ id, name, host: false, connected: true }` として続ける。
+- ホスト保持中（`hostId === null && hostName !== null && hostDisconnectedAt !== null`）は、合成のホスト行 `{ id: "__host__", name: hostName, host: true, connected: false }` を先頭に加える（このときホスト本人は `clients` に居ないので二重化しない）。id は実 clientId（`randomUUID`）と衝突しない固定センチネルを使う。
 - ルーム不在なら空配列。
 
 ## 4. メッセージプロトコル（`shared/protocol.ts`）
 
-プロトコルバージョンは **`v: 1` のまま**。追加のみで後方互換（古いクライアントは未知の `name` を無視し、未知の `roster` 型を無害に読み飛ばす）。
+プロトコルバージョンは **`v: 1` のまま**。追加のみで後方互換。古いクライアントは未知の `name` を無視する。未知の `roster` 型は、現状の `content.ts:106` の default 分岐で `server_event` として popup へ転送されるが、`nextStateForServerEvent("roster")` が `null`（`popup-status.ts`）を返すため表示は変化せず、実害なく無視される。
 
 ### 4.1 Client → Server（`join` に `name` を追加）
 
@@ -87,6 +104,7 @@ Phase 2 の他の3機能との関係：
 
 - `RosterEntry = { id: string; name: string; host: boolean; connected: boolean }`。
 - `joined` / `host_taken` に自分の **`clientId`** を載せる。クライアントは自分の id を覚え、ロスター上で自分の行を「(あなた)」と強調する（名前が衝突しても一意に判定できる）。
+- **型設計**：`clientId` を持つのは `joined` と `host_taken` のみ。現状この2つは `host_disconnected`/`host_resumed` と合わせて `HostStatusMessage` 合併型だが、`clientId` を全メンバーに付けるのは不自然。**`joined` と `host_taken` を独立メッセージ型に切り出し**、`clientId: string` を必須フィールドとして持たせる（`host_disconnected`/`host_resumed` は従来どおり `clientId` なし）。
 
 ### 4.3 配信契機（`server.ts`）
 
@@ -100,6 +118,8 @@ Phase 2 の他の3機能との関係：
 - ホストスロットの timeout 掃除（`sweepHostTimeouts` でスロット解放したルーム）
 
 `sync` / heartbeat ではロスターを触らない（再生状態の流量でロスターを再送しない）。
+
+**送信順序**：join した本人には、まず `joined` / `host_taken`（自分の `clientId` 付き）を送り、**その後に** `broadcastRoster` を呼ぶ。こうすると本人が roster を受け取った時点で既に自分の `selfId` を知っており、「(あなた)」強調が初回から安定する。
 
 ## 5. UI（`extension`）
 
@@ -152,6 +172,7 @@ Phase 2 の他の3機能との関係：
 - 性能：同時10人以下。ロスターはイベント駆動（join/leave/host状態変化）でのみ送るので流量は小さい。
 - セキュリティ：名前は**信頼しない表示文字列**。サーバーで長さ上限・制御文字除去を行う。XSS回避のため popup 側は `textContent` で描画し、`innerHTML` を使わない。
 - 改名・アバター・在席時刻などは対象外（YAGNI）。
+- **既存挙動とのクロスリファレンス（本仕様で導入する問題ではない）**：ホスト切断の60秒保持中（`hostId=null`）に最後の参加者が抜けると、`deleteIfEmpty`（`rooms.ts:124`）が `clients.size===0` でルームごと削除し、ホストの再接続枠が消える。本仕様の「(切断)」表示中に裏でルームが消えうるが、これは既存の挙動。恒久対応は正典 §11「既知の制約」側で扱う（本サイクルでは変更しない）。
 
 ## 8. 不変条件チェック（正典 §「設計上の不変条件」との整合）
 
