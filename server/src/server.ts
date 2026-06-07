@@ -75,6 +75,13 @@ export async function startServer(
       if (sock) send(sock, { v: PROTOCOL_VERSION, type });
     }
   };
+  const broadcastRoster = (roomId: string) => {
+    const participants = rooms.rosterOf(roomId);
+    for (const cid of rooms.clientIdsOf(roomId)) {
+      const sock = findSocket(cid);
+      if (sock) send(sock, { v: PROTOCOL_VERSION, type: "roster", participants });
+    }
+  };
 
   wss.on("connection", (ws) => {
     const ctx: ClientCtx = { id: randomUUID(), roomId: null, isAlive: true };
@@ -102,23 +109,25 @@ export async function startServer(
           break;
         }
         case "join": {
-          const r = rooms.join(msg.roomId, ctx.id, msg.role, msg.hostToken);
+          const r = rooms.join(msg.roomId, ctx.id, msg.role, msg.hostToken, msg.name);
           if (r.outcome === "no_room") {
             send(ws, { v: PROTOCOL_VERSION, type: "no_room" });
             return;
           }
           ctx.roomId = msg.roomId;
           if (r.outcome === "host_taken") {
-            send(ws, { v: PROTOCOL_VERSION, type: "host_taken" });
+            send(ws, { v: PROTOCOL_VERSION, type: "host_taken", clientId: ctx.id });
           } else {
             send(ws, {
               v: PROTOCOL_VERSION,
               type: "joined",
               role: r.outcome === "joined-host" ? "host" : "participant",
+              clientId: ctx.id,
             });
             if (r.outcome === "joined-host") broadcastHostStatus(msg.roomId, "host_resumed");
           }
           if (r.outcome === "joined-participant" && r.lastState) send(ws, r.lastState);
+          broadcastRoster(msg.roomId);
           break;
         }
         case "sync": {
@@ -139,6 +148,7 @@ export async function startServer(
       if (ctx.roomId) {
         const { hostDisconnected } = rooms.removeClient(ctx.roomId, ctx.id);
         if (hostDisconnected) broadcastHostStatus(ctx.roomId, "host_disconnected");
+        broadcastRoster(ctx.roomId);
         rooms.deleteIfEmpty(ctx.roomId);
       }
     });
@@ -161,7 +171,9 @@ export async function startServer(
   }, 30000);
 
   // ホストスロットのタイムアウト掃除
-  const sweepTimer = setInterval(() => rooms.sweepHostTimeouts(), 10000);
+  const sweepTimer = setInterval(() => {
+    for (const roomId of rooms.sweepHostTimeouts()) broadcastRoster(roomId);
+  }, 10000);
 
   const stop = () =>
     new Promise<void>((resolve) => {
