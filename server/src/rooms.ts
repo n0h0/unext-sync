@@ -1,13 +1,19 @@
 import type { RosterEntry, StateMessage, SyncMessage } from "../../shared/protocol";
 
 const MAX_NAME_LEN = 24;
+const MAX_TITLE_LEN = 120;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: 信頼しない表示名から制御文字を除去する
 const CONTROL_CHARS = /[\x00-\x1f\x7f]/g;
 
-/** 信頼しない表示名を正規化する（trim・制御文字除去・24文字切り詰め）。空なら "" を返す。 */
-export function normalizeName(raw: unknown): string {
+/** 信頼しない表示文字列を正規化する（trim・制御文字除去・maxLen コードポイントで切り詰め）。空なら "" を返す。 */
+export function normalizeText(raw: unknown, maxLen: number): string {
   if (typeof raw !== "string") return "";
-  return [...raw.replace(CONTROL_CHARS, "").trim()].slice(0, MAX_NAME_LEN).join("");
+  return [...raw.replace(CONTROL_CHARS, "").trim()].slice(0, maxLen).join("");
+}
+
+/** 表示名の正規化（最大24コードポイント）。 */
+export function normalizeName(raw: unknown): string {
+  return normalizeText(raw, MAX_NAME_LEN);
 }
 
 export type JoinOutcome = "joined-host" | "joined-participant" | "host_taken" | "no_room";
@@ -28,6 +34,7 @@ interface Room {
   hostName: string | null;
   hostDisconnectedAt: number | null;
   lastState: StateMessage | null;
+  hostTitle: string | null;
   clients: Map<string, ClientInfo>; // ホストを含む全接続clientId
 }
 
@@ -52,6 +59,7 @@ export class RoomManager {
       hostName: null,
       hostDisconnectedAt: null,
       lastState: null,
+      hostTitle: null,
       clients: new Map(),
     });
     return { roomId: id, hostToken };
@@ -167,6 +175,20 @@ export class RoomManager {
       entries.push({ id, name: info.name, host: false, connected: true });
     }
     return entries;
+  }
+
+  /** ホストのみ視聴中タイトルを設定。正規化後が空/同値なら changed:false。ホスト以外・不在ルームも changed:false。 */
+  setHostTitle(roomId: string, clientId: string, rawTitle: unknown): { changed: boolean } {
+    const room = this.rooms.get(roomId);
+    if (!room || room.hostId !== clientId) return { changed: false };
+    const title = normalizeText(rawTitle, MAX_TITLE_LEN);
+    if (title === "" || title === room.hostTitle) return { changed: false };
+    room.hostTitle = title;
+    return { changed: true };
+  }
+
+  hostTitleOf(roomId: string): string | null {
+    return this.rooms.get(roomId)?.hostTitle ?? null;
   }
 
   deleteIfEmpty(roomId: string): void {
