@@ -20,9 +20,9 @@ minimumReleaseAgeExclude:
   # tsx 4.22.4（公開: 2026-05-31）
   - tsx@4.22.4
   # 以下は vitest の推移的依存
-  - tinyexec@1.2.4  # 公開: 2026-05-31
-  - tinyglobby@0.2.17  # 公開: 2026-05-30
-  - obug@2.1.2  # 公開: 2026-06-04
+  - tinyexec@1.2.4 # 公開: 2026-05-31
+  - tinyglobby@0.2.17 # 公開: 2026-05-30
+  - obug@2.1.2 # 公開: 2026-06-04
 
 # 推移的依存が git/tarball 等の exotic protocol を使うのを禁止（v11 デフォルトを明示）
 blockExoticSubdeps: true
@@ -44,3 +44,5 @@ verifyDepsBeforeRun: install
 # （esbuild はプラットフォームバイナリを postinstall で取得するため必須）
 allowBuilds:
   esbuild: true
+  sharp: true
+  workerd: true

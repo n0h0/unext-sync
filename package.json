@@ -19,13 +19,16 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.16",
+    "@cloudflare/vitest-pool-workers": "^0.16.10",
+    "@cloudflare/workers-types": "^4.20260531.1",
     "@types/chrome": "^0.1.42",
     "@types/node": "^25.9.1",
     "@types/ws": "^8.18.1",
     "esbuild": "^0.28.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "wrangler": "^4.95.0"
   },
   "packageManager": "pnpm@11.5.2+sha512.71c631e382066efc25625d5cf029075de07b61b37f6e27350fbd84b1bda5864c8c1967adc280776b45c30a715c0359a3be08fef42d5bb09e2b99029979692916"
 }

@@ -8,7 +8,7 @@
     "skipLibCheck": true,
     "noUnusedLocals": true,
     "lib": ["ES2022", "DOM"],
-    "types": ["node", "chrome"]
+    "types": ["node", "chrome", "@cloudflare/workers-types"]
   },
-  "include": ["shared", "server", "extension"]
+  "include": ["shared", "server", "extension", "worker"]
 }
