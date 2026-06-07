@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
 import type { SyncMessage } from "../shared/protocol";
-import { RoomManager } from "./src/rooms";
+import { normalizeName, RoomManager } from "./src/rooms";
 
 let now = 1000;
 const clock = () => now;
@@ -96,4 +96,29 @@ test("host slot released after timeout sweep", () => {
   now += 61000;
   const released = rm.sweepHostTimeouts();
   expect(released).toContain(roomId);
+});
+
+test("normalizeName trims and strips control chars", () => {
+  expect(normalizeName("  たろう  ")).toBe("たろう");
+  expect(normalizeName("abc")).toBe("abc");
+  expect(normalizeName("ab\x7fcd")).toBe("abcd");
+  expect(normalizeName("\x01\x02")).toBe("");
+});
+
+test("normalizeName truncates to 24 chars", () => {
+  expect(normalizeName("あ".repeat(40))).toBe("あ".repeat(24));
+});
+
+test("normalizeName returns empty string for non-string or empty", () => {
+  expect(normalizeName(undefined)).toBe("");
+  expect(normalizeName(42)).toBe("");
+  expect(normalizeName("   ")).toBe("");
+  expect(normalizeName(null)).toBe("");
+  expect(normalizeName({})).toBe("");
+});
+
+test("normalizeName truncates by code point without splitting surrogates", () => {
+  const out = normalizeName("😀".repeat(40));
+  expect([...out]).toHaveLength(24);
+  expect(out).toBe("😀".repeat(24));
 });

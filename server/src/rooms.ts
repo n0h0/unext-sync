@@ -1,5 +1,15 @@
 import type { StateMessage, SyncMessage } from "../../shared/protocol";
 
+const MAX_NAME_LEN = 24;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: 信頼しない表示名から制御文字を除去する
+const CONTROL_CHARS = /[\x00-\x1f\x7f]/g;
+
+/** 信頼しない表示名を正規化する（trim・制御文字除去・24文字切り詰め）。空なら "" を返す。 */
+export function normalizeName(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return [...raw.replace(CONTROL_CHARS, "").trim()].slice(0, MAX_NAME_LEN).join("");
+}
+
 export type JoinOutcome = "joined-host" | "joined-participant" | "host_taken" | "no_room";
 
 export interface JoinResult {
