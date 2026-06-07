@@ -9,6 +9,8 @@
  * - Session.aborted(): 自分の世代が現行でなくなったら true（await 直後に確認し早期 return する）。
  * - Session.dispose(): 登録済み解放処理を LIFO で1回ずつ実行する（冪等）。
  * - end(): 現行セッションを abort し、登録済み解放処理を実行する（退出時に呼ぶ）。
+ * - 呼び出し側の責務: `aborted()` が true になったら `dispose()` を呼ぶこと。`begin()` は前の
+ *   セッションの disposers を自動解放しない（連続 begin で古い disposers は破棄され呼ばれない）。
  */
 export interface Session {
   aborted(): boolean;
