@@ -27,7 +27,7 @@ jobs:
         run: pnpm biome ci .
 
       - name: Type check
-        run: pnpm tsc --noEmit
+        run: pnpm typecheck
 
       - name: Test
         run: pnpm test

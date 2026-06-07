@@ -48,7 +48,8 @@ export default {
 
     const m = url.pathname.match(/^\/r\/([A-Za-z0-9]{1,32})$/);
     if (m && request.headers.get("Upgrade") === "websocket") {
-      const presented = (request.headers.get("Sec-WebSocket-Protocol") ?? "").split(",")[0]?.trim() ?? "";
+      const presented =
+        (request.headers.get("Sec-WebSocket-Protocol") ?? "").split(",")[0]?.trim() ?? "";
       if (!constantTimeEqual(presented, env.CONNECT_SECRET)) {
         return new Response("unauthorized", { status: 401 });
       }

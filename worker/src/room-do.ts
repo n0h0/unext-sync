@@ -4,10 +4,10 @@ import {
   type Attachment,
   type ClientInfo,
   type Effect,
-  type PersistentState,
-  type RoomState,
   freshPersistent,
   makeRoomLogic,
+  type PersistentState,
+  type RoomState,
 } from "../../shared/rooms";
 
 const HOST_TIMEOUT_MS = 60_000;
@@ -34,7 +34,8 @@ export class RoomDurableObject extends DurableObject {
     const clients = new Map<string, ClientInfo>();
     for (const sock of this.ctx.getWebSockets()) {
       const a = sock.deserializeAttachment() as Attachment | null;
-      if (a && a.joined && a.clientId !== exclude) clients.set(a.clientId, { name: a.name, joinedAt: a.joinedAt });
+      if (a?.joined && a.clientId !== exclude)
+        clients.set(a.clientId, { name: a.name, joinedAt: a.joinedAt });
     }
     return { persistent, clients };
   }
@@ -63,7 +64,7 @@ export class RoomDurableObject extends DurableObject {
         case "broadcast": {
           for (const sock of this.ctx.getWebSockets()) {
             const a = sock.deserializeAttachment() as Attachment | null;
-            if (!a || !a.joined) continue;
+            if (!a?.joined) continue;
             if (e.exclude && a.clientId === e.exclude) continue;
             sock.send(JSON.stringify(e.msg));
           }
@@ -145,7 +146,9 @@ export class RoomDurableObject extends DurableObject {
     if (!state) return;
     const logic = this.logic();
     if (msg.type === "join") {
-      await this.commit(logic.applyJoin(state, att.clientId, att.joinedAt, msg.role, msg.hostToken, msg.name));
+      await this.commit(
+        logic.applyJoin(state, att.clientId, att.joinedAt, msg.role, msg.hostToken, msg.name),
+      );
     } else if (msg.type === "sync") {
       await this.commit(logic.applySync(state, att.clientId, msg));
     } else if (msg.type === "title") {

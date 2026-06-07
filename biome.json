@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["shared/**/*.ts", "server/**/*.ts", "extension/**/*.ts", "*.json", "!biome.json"]
+    "includes": ["shared/**/*.ts", "worker/**/*.ts", "extension/**/*.ts", "*.json", "!biome.json"]
   },
   "formatter": {
     "enabled": true,

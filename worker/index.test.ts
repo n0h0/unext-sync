@@ -24,10 +24,24 @@ it("create → host join → participant join receives lastState; sync broadcast
   const { roomId, hostToken } = await create.json<{ roomId: string; hostToken: string }>();
 
   const host = await openWs(roomId);
-  host.ws.send(JSON.stringify({ v: 2, type: "join", roomId, role: "host", hostToken, name: "host" }));
-  await vi.waitFor(() => expect(host.messages.some((m) => m.type === "joined" && m.role === "host")).toBe(true));
+  host.ws.send(
+    JSON.stringify({ v: 2, type: "join", roomId, role: "host", hostToken, name: "host" }),
+  );
+  await vi.waitFor(() =>
+    expect(host.messages.some((m) => m.type === "joined" && m.role === "host")).toBe(true),
+  );
 
-  host.ws.send(JSON.stringify({ v: 2, type: "sync", event: "heartbeat", playing: true, currentTime: 42, playbackRate: 1, seq: 1 }));
+  host.ws.send(
+    JSON.stringify({
+      v: 2,
+      type: "sync",
+      event: "heartbeat",
+      playing: true,
+      currentTime: 42,
+      playbackRate: 1,
+      seq: 1,
+    }),
+  );
 
   const part = await openWs(roomId);
   part.ws.send(JSON.stringify({ v: 2, type: "join", roomId, role: "participant", name: "p" }));
@@ -36,8 +50,20 @@ it("create → host join → participant join receives lastState; sync broadcast
     expect(part.messages.some((m) => m.type === "state" && m.currentTime === 42)).toBe(true);
   });
 
-  host.ws.send(JSON.stringify({ v: 2, type: "sync", event: "seek", playing: true, currentTime: 99, playbackRate: 1, seq: 2 }));
-  await vi.waitFor(() => expect(part.messages.some((m) => m.type === "state" && m.currentTime === 99)).toBe(true));
+  host.ws.send(
+    JSON.stringify({
+      v: 2,
+      type: "sync",
+      event: "seek",
+      playing: true,
+      currentTime: 99,
+      playbackRate: 1,
+      seq: 2,
+    }),
+  );
+  await vi.waitFor(() =>
+    expect(part.messages.some((m) => m.type === "state" && m.currentTime === 99)).toBe(true),
+  );
 });
 
 it("join into unknown room returns no_room", async () => {
@@ -52,10 +78,15 @@ it("POST /create without secret is unauthorized", async () => {
 });
 
 it("ping is echoed as pong with same id", async () => {
-  const create = await SELF.fetch("https://x/create", { method: "POST", headers: { Authorization: `Bearer ${SECRET}` } });
+  const create = await SELF.fetch("https://x/create", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${SECRET}` },
+  });
   const { roomId, hostToken } = await create.json<{ roomId: string; hostToken: string }>();
   const host = await openWs(roomId);
   host.ws.send(JSON.stringify({ v: 2, type: "join", roomId, role: "host", hostToken }));
   host.ws.send(JSON.stringify({ v: 2, type: "ping", id: 7 }));
-  await vi.waitFor(() => expect(host.messages.some((m) => m.type === "pong" && m.id === 7)).toBe(true));
+  await vi.waitFor(() =>
+    expect(host.messages.some((m) => m.type === "pong" && m.id === 7)).toBe(true),
+  );
 });
