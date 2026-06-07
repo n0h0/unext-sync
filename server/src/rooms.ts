@@ -1,4 +1,4 @@
-import type { StateMessage, SyncMessage } from "../../shared/protocol";
+import type { RosterEntry, StateMessage, SyncMessage } from "../../shared/protocol";
 
 const MAX_NAME_LEN = 24;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: 信頼しない表示名から制御文字を除去する
@@ -17,13 +17,18 @@ export interface JoinResult {
   lastState: StateMessage | null;
 }
 
+interface ClientInfo {
+  name: string;
+}
+
 interface Room {
   id: string;
   hostToken: string;
   hostId: string | null; // 現在接続中のホストclientId
+  hostName: string | null;
   hostDisconnectedAt: number | null;
   lastState: StateMessage | null;
-  clients: Set<string>; // ホストを含む全接続clientId
+  clients: Map<string, ClientInfo>; // ホストを含む全接続clientId
 }
 
 export interface RoomManagerDeps {
@@ -44,9 +49,10 @@ export class RoomManager {
       id,
       hostToken,
       hostId: null,
+      hostName: null,
       hostDisconnectedAt: null,
       lastState: null,
-      clients: new Set(),
+      clients: new Map(),
     });
     return { roomId: id, hostToken };
   }
@@ -56,16 +62,20 @@ export class RoomManager {
     clientId: string,
     role: "host" | "participant",
     hostToken?: string,
+    name?: string,
   ): JoinResult {
     const room = this.rooms.get(roomId);
     if (!room) return { outcome: "no_room", lastState: null };
-    room.clients.add(clientId);
+    // 空名は genId の先頭4文字をサフィックスにゲスト名を合成（DI済みの乱数源を再利用）。
+    const cleanName = normalizeName(name) || `ゲスト-${this.deps.genId().slice(0, 4)}`;
+    room.clients.set(clientId, { name: cleanName });
 
     if (role === "host") {
       const tokenOk = hostToken === room.hostToken;
       const slotFree = room.hostId === null;
       if (tokenOk && slotFree) {
         room.hostId = clientId;
+        room.hostName = cleanName;
         room.hostDisconnectedAt = null;
         return { outcome: "joined-host", lastState: room.lastState };
       }
@@ -92,7 +102,7 @@ export class RoomManager {
       seq: msg.seq,
     };
     room.lastState = state;
-    const broadcastTo = [...room.clients].filter((c) => c !== clientId);
+    const broadcastTo = [...room.clients.keys()].filter((c) => c !== clientId);
     return { broadcastTo, state };
   }
 
@@ -119,6 +129,7 @@ export class RoomManager {
         t - room.hostDisconnectedAt > this.deps.hostTimeoutMs
       ) {
         room.hostDisconnectedAt = null; // スロットは hostId=null のまま＝再取得可能
+        room.hostName = null;
         released.push(room.id);
       }
     }
@@ -128,7 +139,7 @@ export class RoomManager {
   participantsOf(roomId: string): string[] {
     const room = this.rooms.get(roomId);
     if (!room) return [];
-    return [...room.clients].filter((c) => c !== room.hostId);
+    return [...room.clients.keys()].filter((c) => c !== room.hostId);
   }
 
   deleteIfEmpty(roomId: string): void {
