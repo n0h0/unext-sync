@@ -36,6 +36,7 @@ if (!SECRET || !/^[A-Za-z0-9_-]+$/.test(SECRET)) {
 
 // ── 定数 ───────────────────────────────────────────────────────────────────
 const SERVER_URL = "ws://localhost:8080";
+const HOST_NAME = "ホスト(擬似)"; // roster に表示されるホスト名
 const HEARTBEAT_INTERVAL_MS = 5000;
 const TICKER_INTERVAL_MS = 100;     // currentTime 追跡精度
 const CONTROL_POLL_MS = 200;
@@ -102,7 +103,7 @@ function connect() {
     } else {
       // 再接続: 既存トークンでhostとして再join
       log("ACTION", `Re-joining room ${roomId} as host (hostToken=${hostToken.slice(0, 8)}...)`);
-      send({ v: 1, type: "join", roomId, role: "host", hostToken });
+      send({ v: 1, type: "join", roomId, role: "host", hostToken, name: HOST_NAME });
     }
   });
 
@@ -120,7 +121,7 @@ function connect() {
         roomId = msg.roomId;
         hostToken = msg.hostToken;
         log("RECV", `created → roomId=${roomId}`);
-        send({ v: 1, type: "join", roomId, role: "host", hostToken });
+        send({ v: 1, type: "join", roomId, role: "host", hostToken, name: HOST_NAME });
         break;
 
       case "joined":
@@ -142,6 +143,15 @@ function connect() {
       case "host_taken":
         log("RECV", "host_taken — host slot occupied by another client");
         break;
+
+      case "roster": {
+        // 参加者の入退室・ホスト切断/復帰のたびにサーバーが全ロスターを送る（方式C / 全状態スナップショット）
+        const rows = (msg.participants ?? [])
+          .map((p) => `${p.host ? "👑" : "・"}${p.name}${p.connected ? "" : "(切断)"}`)
+          .join("  ");
+        log("ROSTER", `(${msg.participants?.length ?? 0}) ${rows}`);
+        break;
+      }
 
       case "pong":
         // RTT確認用（正常動作）

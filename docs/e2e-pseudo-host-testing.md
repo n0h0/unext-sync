@@ -52,7 +52,8 @@ CONNECT_SECRET=$SECRET node scripts/e2e-host.mjs &
 1. `chrome://extensions` で `dist/extension` を読み込み（既読込なら**再読込ボタン**で最新ビルドを反映）。
 2. U-NEXT で **5分以上**のタイトルを開いて再生開始（`<video>` を生成させる。擬似ホストの currentTime は
    60〜200秒程度なのでタイトル長に余裕を持たせる）。
-3. 拡張 popup → ROOM ID を入力 → **「参加（参加者）」**をクリック（「ルーム作成」は押さない）。
+3. 拡張 popup → **「あなたの名前」**を入力（`chrome.storage` に保存され次回プリフィル）→ ROOM ID を入力 →
+   **「参加（参加者）」**をクリック（「ルーム作成」は押さない）。
 
 ## 擬似ホストの操作（制御ファイル方式）
 
@@ -79,6 +80,18 @@ CONNECT_SECRET=$SECRET node scripts/e2e-host.mjs &
 - [ ] ホストの play / pause / seek / ratechange が動画に反映される。
 - [ ] 参加者が手動でシークバーをずらすと、即時〜5秒以内にホスト位置へ戻る。
 - [ ] `disconnect` → popup「ホスト切断」、`reconnect` → popup「接続済み」。
+
+### ロスター（参加者一覧）表示
+
+擬似ホストは join 時に名前 `ホスト(擬似)` を送り、受信した roster を `[ROSTER]` 行でログ出力する
+（`/tmp/e2e_host.log` 等で確認可）。サーバー側のロスター配信は `node scripts/e2e-host.mjs` のログと
+ユニットテスト（`server/server.test.ts`, `server/rooms.test.ts`）で実証済み。popup の**描画**を実機確認する。
+
+- [ ] 参加後、popup に「参加者 (2)」ヘッダと2行が出る：`👑 ホスト(擬似)` と `<自分の名前> (あなた)`。
+- [ ] `disconnect` → ホスト行が `👑 ホスト(擬似) (切断)`（灰色）に変わり、自分の行は残る。
+- [ ] `reconnect` → ホスト行の `(切断)` が消えて通常表示に戻る。
+- [ ] popup を閉じて開き直しても（get_status 復元）一覧が再表示される。
+- [ ] 名前を空欄のまま参加すると、ホスト側 `[ROSTER]` ログに `ゲスト-xxxx` が出る（サーバー合成名）。
 
 ## 後始末
 
