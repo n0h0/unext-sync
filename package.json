@@ -12,7 +12,8 @@
     "lint": "biome lint .",
     "format": "biome format --write .",
     "check": "biome check .",
-    "check:fix": "biome check --write ."
+    "check:fix": "biome check --write .",
+    "test:worker": "vitest run -c worker/vitest.config.ts"
   },
   "dependencies": {
     "ws": "^8.21.0"
