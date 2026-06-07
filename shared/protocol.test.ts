@@ -85,3 +85,47 @@ test("rejects title with non-string title", () => {
   expect(parseClientMessage(JSON.stringify({ v: 1, type: "title", title: 42 }))).toBeNull();
   expect(parseClientMessage(JSON.stringify({ v: 1, type: "title" }))).toBeNull();
 });
+
+test("parses sync with contentKey", () => {
+  const raw = JSON.stringify({
+    v: 1,
+    type: "sync",
+    event: "play",
+    playing: true,
+    currentTime: 1,
+    playbackRate: 1,
+    seq: 1,
+    contentKey: "SID0234926/ED00720092",
+  });
+  expect(parseClientMessage(raw)).toMatchObject({
+    type: "sync",
+    contentKey: "SID0234926/ED00720092",
+  });
+});
+
+test("rejects sync with non-string contentKey", () => {
+  const raw = JSON.stringify({
+    v: 1,
+    type: "sync",
+    event: "play",
+    playing: true,
+    currentTime: 1,
+    playbackRate: 1,
+    seq: 1,
+    contentKey: 42,
+  });
+  expect(parseClientMessage(raw)).toBeNull();
+});
+
+test("sync without contentKey is still valid (contentKey undefined)", () => {
+  const raw = JSON.stringify({
+    v: 1,
+    type: "sync",
+    event: "play",
+    playing: true,
+    currentTime: 1,
+    playbackRate: 1,
+    seq: 1,
+  });
+  expect(parseClientMessage(raw)).toMatchObject({ type: "sync" });
+});

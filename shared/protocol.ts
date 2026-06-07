@@ -14,6 +14,7 @@ export interface SyncMessage extends PlaybackFields {
   v: number;
   type: "sync";
   event: SyncEvent;
+  contentKey?: string;
 }
 export interface CreateMessage {
   v: number;
@@ -60,6 +61,7 @@ export interface StateMessage extends PlaybackFields {
   v: number;
   type: "state";
   event: SyncEvent;
+  contentKey?: string;
 }
 export interface HostStatusMessage {
   v: number;
@@ -144,6 +146,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       };
     case "sync":
       if (!SYNC_EVENTS.includes(o.event) || !isPlayback(o)) return null;
+      if (o.contentKey !== undefined && typeof o.contentKey !== "string") return null;
       return {
         v: 1,
         type: "sync",
@@ -152,6 +155,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         currentTime: o.currentTime,
         playbackRate: o.playbackRate,
         seq: o.seq,
+        contentKey: o.contentKey,
       };
     case "title":
       if (typeof o.title !== "string") return null;
