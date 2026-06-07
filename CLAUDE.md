@@ -26,6 +26,8 @@ pnpm deploy                            # wrangler deploy（本番デプロイ）
 
 型チェックは `pnpm typecheck`（`tsc --noEmit && tsc -p worker/tsconfig.json --noEmit`、strict, `noUnusedLocals` 有効）。
 
+デプロイ（`wrangler login`→`wrangler secret put CONNECT_SECRET`→`pnpm deploy`）・拡張ビルド・友人への配布（zip 手渡し）の運用手順は `docs/deploy-and-distribute.md`。
+
 ### Biome（Lint + Format）
 
 ```bash

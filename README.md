@@ -14,3 +14,7 @@ U-NEXTの動画**再生状態のみ**（play / pause / seek / playbackRate）を
 - 同期視聴自体が「本来のサービス提供目的とは異なる利用」「当社が不適切と判断する行為」（同 第25条1(9)(24)）として裁量で問題視され、事前通知なく利用停止・アカウント削除（同 第17条 / 第30条）となる可能性がある。
 
 > 上記は規約条文（プラットフォーム利用規約 2025/02/01版・ビデオサービス利用規約 2020/10/09版）と実装の照合に基づく整理であり、法的助言ではない。規約は改定されうるため、利用前に最新の規約 https://help.unext.jp/legal/terms を各自確認すること。
+
+## デプロイ・配布
+
+サーバー（Cloudflare Workers + Durable Objects）のデプロイ、Chrome 拡張のビルド、友人への配布（zip 手渡し方式）の手順は [`docs/deploy-and-distribute.md`](docs/deploy-and-distribute.md) を参照。ローカル開発・E2E は [`docs/e2e-pseudo-host-testing.md`](docs/e2e-pseudo-host-testing.md)。
