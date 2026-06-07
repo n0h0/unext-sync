@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "U-NEXTの再生状態を複数ユーザーで同期する",
   "permissions": ["tabs", "storage", "clipboardWrite"],
-  "host_permissions": ["https://video.unext.jp/*", "https://unext-sync.<subdomain>.workers.dev/*"],
+  "host_permissions": ["https://video.unext.jp/*", "https://unext-sync.kusakatsubasa-dba.workers.dev/*"],
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
