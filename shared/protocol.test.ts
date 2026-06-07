@@ -75,3 +75,13 @@ test("rejects join with non-string name", () => {
   const raw = JSON.stringify({ v: 1, type: "join", roomId: "r", role: "participant", name: 42 });
   expect(parseClientMessage(raw)).toBeNull();
 });
+
+test("parses a title message", () => {
+  const raw = JSON.stringify({ v: 1, type: "title", title: "作品名 第3話" });
+  expect(parseClientMessage(raw)).toEqual({ v: 1, type: "title", title: "作品名 第3話" });
+});
+
+test("rejects title with non-string title", () => {
+  expect(parseClientMessage(JSON.stringify({ v: 1, type: "title", title: 42 }))).toBeNull();
+  expect(parseClientMessage(JSON.stringify({ v: 1, type: "title" }))).toBeNull();
+});
