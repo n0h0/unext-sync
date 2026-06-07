@@ -16,6 +16,10 @@
  *   {"n": 6, "cmd": "reconnect"}
  *   {"n": 7, "cmd": "status"}
  *   {"n": 8, "cmd": "title", "value": "別の作品 第2話"}  // 視聴中タイトルを変更（SPA話数遷移を模擬）
+ *   {"n": 9, "cmd": "episode", "value": "SID0234926/ED00720092"} // 次エピソードへ遷移（contentKey 切替＋先頭から再生）
+ *
+ * 視聴中エピソード(contentKey)の初期値は HOST_CONTENT_KEY env で設定（既定 SID0234926/ED00720091）。
+ * 参加者の実 U-NEXT URL の SID/ED に一致させること（不一致だと参加者は hold＝同期されない）。
  */
 
 import { WebSocket } from "ws";
@@ -43,6 +47,10 @@ const HEARTBEAT_INTERVAL_MS = 5000;
 const TICKER_INTERVAL_MS = 100;     // currentTime 追跡精度
 const CONTROL_POLL_MS = 200;
 const INITIAL_CURRENT_TIME = 60.0;  // 1:00 から開始（動画は5分以上のものを用意）
+// 視聴中エピソード識別子（SID/ED）。実拡張では deriveContentKey(location.pathname) が導く値。
+// 参加者の実 U-NEXT URL の SID/ED に一致させること（一致しないと参加者は hold＝同期されない）。
+// 既定はリクエスト例の第1話。テスターが開く作品に合わせ HOST_CONTENT_KEY で上書きする。
+const INITIAL_CONTENT_KEY = process.env.HOST_CONTENT_KEY || "SID0234926/ED00720091";
 
 // ── 内部再生モデル ───────────────────────────────────────────────────────────
 const state = {
@@ -52,6 +60,7 @@ const state = {
   seq: 0,
 };
 let currentTitle = HOST_TITLE; // ホストが送信中の視聴タイトル（title コマンドで変更可）
+let currentContentKey = INITIAL_CONTENT_KEY; // ホストが視聴中のエピソード（episode コマンドで変更可）
 
 // ── セッション状態 ──────────────────────────────────────────────────────────
 let ws = null;
@@ -88,9 +97,10 @@ function emitSync(event) {
     currentTime: Number(state.currentTime.toFixed(3)),
     playbackRate: state.playbackRate,
     seq: state.seq,
+    contentKey: currentContentKey,
   };
   send(msg);
-  log("SYNC", `${event.padEnd(11)} t=${msg.currentTime.toFixed(1)}s rate=${state.playbackRate}x playing=${state.playing} seq=${state.seq}`);
+  log("SYNC", `${event.padEnd(11)} t=${msg.currentTime.toFixed(1)}s rate=${state.playbackRate}x playing=${state.playing} seq=${state.seq} ck=${currentContentKey}`);
 }
 
 // ── 視聴中タイトル送信（host→server。サーバーが room_title で全員へ配信） ──────
@@ -262,6 +272,20 @@ setInterval(() => {
       }
       break;
 
+    case "episode":
+      // 次エピソードへの自動遷移を模擬。host の contentKey を切り替え、新エピソード先頭から再生する。
+      // 実拡張では content.ts が遷移検知で <video> を取り直し orchestrator.heartbeat() を即送出する箇所に対応。
+      // 参加者は自分の URL の SID/ED がこの値に一致するまで hold（誤シークしない）。
+      if (typeof value === "string" && /^SID\w+\/ED\w+$/.test(value)) {
+        currentContentKey = value;
+        state.currentTime = 0; // 新エピソードは先頭から
+        emitSync("heartbeat"); // 新 contentKey＋新 currentTime を即時通知（ズレ窓を最小化）
+        log("ACTION", `Episode → ${value}（currentTime を 0 にリセット）`);
+      } else {
+        log("ERROR", 'episode requires value like "SID0234926/ED00720092"');
+      }
+      break;
+
     case "disconnect":
       log("ACTION", "Simulating host disconnect (close socket)...");
       if (ws) ws.close(1000, "manual-disconnect");
@@ -281,6 +305,7 @@ setInterval(() => {
       console.log(`  playbackRate: ${state.playbackRate}x`);
       console.log(`  seq         : ${state.seq}`);
       console.log(`  title       : "${currentTitle}"`);
+      console.log(`  contentKey  : ${currentContentKey}`);
       console.log("────────────────────────────────────────────────────\n");
       break;
 
@@ -292,5 +317,6 @@ setInterval(() => {
 
 // ── 起動 ───────────────────────────────────────────────────────────────────
 log("START", `E2E Pseudo-Host — currentTime starts at ${INITIAL_CURRENT_TIME}s`);
+log("START", `contentKey = ${currentContentKey}（参加者の U-NEXT URL の SID/ED に一致させること）`);
 log("START", `Control file: ${CONTROL_FILE}`);
 connect();

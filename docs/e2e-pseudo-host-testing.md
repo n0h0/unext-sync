@@ -47,6 +47,15 @@ CONNECT_SECRET=$SECRET node scripts/e2e-host.mjs &
 > 既定（未指定）では本番 `wss://unext-sync.onrender.com` が埋め込まれるので、`extension/src/config.ts` を
 > 編集する必要はない。不正なURL（`ws://|wss://` 以外）は `build.mjs` がビルド時に弾く。
 
+> **話数遷移の同期を検証する場合**は、擬似ホストの視聴中エピソード（`contentKey`）を
+> **参加者が実際に開く U-NEXT URL の SID/ED に一致させる**こと。一致しないと参加者は hold（同期されない）。
+> URL `https://video.unext.jp/play/SID0234926/ED00720091` なら contentKey は `SID0234926/ED00720091`。
+> 起動時に env で渡す（既定は `SID0234926/ED00720091`）:
+>
+> ```bash
+> CONNECT_SECRET=$SECRET HOST_CONTENT_KEY="SID0234926/ED00720091" node scripts/e2e-host.mjs &
+> ```
+
 ## ブラウザ操作（参加者）
 
 1. `chrome://extensions` で `dist/extension` を読み込み（既読込なら**再読込ボタン**で最新ビルドを反映）。
@@ -69,7 +78,14 @@ CONNECT_SECRET=$SECRET node scripts/e2e-host.mjs &
 {"n": 6, "cmd": "reconnect"}         // 同一トークンで再join（→「接続済み」）
 {"n": 7, "cmd": "status"}            // 現在の内部状態をログ出力
 {"n": 8, "cmd": "title", "value": "別の作品 第2話"} // 視聴中タイトル変更（SPA話数遷移を模擬）
+{"n": 9, "cmd": "episode", "value": "SID0234926/ED00720092"} // 次エピソードへ遷移（contentKey 切替＋先頭から再生）
 ```
+
+`episode` はホストの `contentKey` を切り替え、`currentTime` を 0 にリセットして heartbeat を送る（実拡張で
+content.ts が遷移検知 → `<video>` 取り直し → `orchestrator.heartbeat()` を即送出する挙動に対応）。`value` は
+`SID…/ED…` 形式。参加者は**自分の URL の SID/ED がこの値に一致するまで hold**し、誤シークしない。
+再生/停止状態は変えない（直前が `pause` なら新エピソードも先頭で停止状態になる）。再生中の遷移を試すなら
+先に `play` を送っておく。
 
 擬似ホストは host-join 直後に既定タイトル `テスト作品 第1話` を送る（実拡張では content.ts が
 `joined`（role:host）で `cleanTitle(document.title)` を送出する箇所に対応）。`title` コマンドで変更すると
@@ -110,6 +126,29 @@ popup の**描画**を確認する。
       `🎬 視聴中: 別の作品 第2話` に更新される（popup を開いたまま送る）。
 - [ ] popup を閉じて開き直しても（get_status 復元）視聴中タイトル行が再表示される。
 - [ ] タイトル変更後に新規参加した参加者は、最新タイトルをキャッチアップ表示する。
+
+### エピソード自動遷移時の同期維持（contentKey ガード）
+
+spec: `docs/superpowers/specs/2026-06-07-episode-transition-sync-design.md`。U-NEXT の話数自動遷移（SPA）で
+同期が維持されることを実機確認する。WSレベルの配信路（host が `contentKey` 送出 → server `recordSync` 素通し
+→ 参加者ガード hold→catch-up → 途中参加 lastState）はヘッドレス E2E と
+ユニットテスト（`shared/protocol.test.ts` / `server/rooms.test.ts` / `extension/src/sync-orchestrator.test.ts`）で
+実証済み。ここでは**ブラウザ側**（`deriveContentKey` の実 URL 評価・pathname 検知・`<video>` 再バインド）を確認する。
+
+**準備**: 擬似ホストを `HOST_CONTENT_KEY` に**参加者が開く第1話の SID/ED**を指定して起動し、参加者は同じ
+第1話を開いて参加する（contentKey 一致状態から始める）。第2話の URL（SID は同じ・ED が次番号）も控えておく。
+
+- [ ] 一致状態では従来どおり host の play / pause / seek が参加者に反映される（contentKey ガードが正常系を妨げない）。
+- [ ] **ホスト先行**: `{"cmd":"episode","value":"<第2話のSID/ED>"}` を送る（host だけ第2話へ）。参加者はまだ
+      第1話 → 動画が**勝手にシークされない**（hold。host の `t=0` へ飛ばされない）。
+- [ ] 続いて参加者のタブを第2話 URL（`…/ED…次番号`）へ遷移させる（次話リンク／自動遷移）→ contentKey が一致し、
+      数秒以内に host のエピソード位置へ追従する。`<video>` が差し替わっても同期が復帰する。
+- [ ] **参加者先行**: 参加者だけ先に第2話へ遷移し、host はまだ第1話（`episode` 未送）→ 参加者は hold
+      （第1話の host 位置へ引き戻されない）。その後 `episode` で host を第2話にすると host 位置へ追従する。
+- [ ] 遷移直後に一瞬先頭（`t≈0`）付近へ寄っても、後続 heartbeat（≤5s）で正位置に補正される。
+
+> 補足: 参加者の追従は**参加者自身がそのエピソードへ遷移して初めて**起きる（受動方式。システムは参加者を
+> 能動的にナビゲートしない）。host の `episode` 送出だけでは参加者は遷移せず hold を続ける。
 
 ## 後始末
 
