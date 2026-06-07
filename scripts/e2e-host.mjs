@@ -40,7 +40,8 @@ if (!SECRET || !/^[A-Za-z0-9_-]+$/.test(SECRET)) {
 }
 
 // ── 定数 ───────────────────────────────────────────────────────────────────
-const SERVER_URL = "ws://localhost:8080";
+const SERVER_URL = process.env.SERVER_URL || "ws://localhost:8787";
+const HTTP_BASE = SERVER_URL.replace(/^ws/, "http"); // ws→http, wss→https（POST /create 用）
 const HOST_NAME = "ホスト(擬似)"; // roster に表示されるホスト名
 const HOST_TITLE = "テスト作品 第1話"; // 視聴中タイトル（参加者popupに「🎬 視聴中: …」で表示）
 const HEARTBEAT_INTERVAL_MS = 5000;
@@ -90,7 +91,7 @@ function send(msg) {
 function emitSync(event) {
   state.seq++;
   const msg = {
-    v: 1,
+    v: 2,
     type: "sync",
     event,
     playing: state.playing,
@@ -106,25 +107,34 @@ function emitSync(event) {
 // ── 視聴中タイトル送信（host→server。サーバーが room_title で全員へ配信） ──────
 function sendTitle(title) {
   currentTitle = title;
-  send({ v: 1, type: "title", title });
+  send({ v: 2, type: "title", title });
   log("TITLE", `→ "${title}"`);
+}
+
+// ── ルーム作成（HTTP POST /create） ────────────────────────────────────────
+async function ensureRoom() {
+  if (roomId) return;
+  log("ACTION", `POST ${HTTP_BASE}/create ...`);
+  const res = await fetch(`${HTTP_BASE}/create`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${SECRET}` },
+  });
+  if (!res.ok) throw new Error(`create failed: ${res.status}`);
+  const data = await res.json();
+  roomId = data.roomId;
+  hostToken = data.hostToken;
+  log("RECV", `created → roomId=${roomId}`);
 }
 
 // ── WS接続 ─────────────────────────────────────────────────────────────────
 function connect() {
-  log("CONNECT", `→ ${SERVER_URL}`);
-  ws = new WebSocket(SERVER_URL, [SECRET]);
+  log("CONNECT", `→ ${SERVER_URL}/r/${roomId}`);
+  ws = new WebSocket(`${SERVER_URL}/r/${roomId}`, [SECRET]);
 
   ws.on("open", () => {
     log("OPEN", "Connected");
-    if (!roomId) {
-      log("ACTION", "Sending create...");
-      send({ v: 1, type: "create" });
-    } else {
-      // 再接続: 既存トークンでhostとして再join
-      log("ACTION", `Re-joining room ${roomId} as host (hostToken=${hostToken.slice(0, 8)}...)`);
-      send({ v: 1, type: "join", roomId, role: "host", hostToken, name: HOST_NAME });
-    }
+    log("ACTION", `Joining room ${roomId} as host (hostToken=${hostToken.slice(0, 8)}...)`);
+    send({ v: 2, type: "join", roomId, role: "host", hostToken, name: HOST_NAME });
   });
 
   ws.on("message", (data) => {
@@ -137,13 +147,6 @@ function connect() {
     }
 
     switch (msg.type) {
-      case "created":
-        roomId = msg.roomId;
-        hostToken = msg.hostToken;
-        log("RECV", `created → roomId=${roomId}`);
-        send({ v: 1, type: "join", roomId, role: "host", hostToken, name: HOST_NAME });
-        break;
-
       case "joined":
         if (msg.role === "host") {
           hostJoined = true;
@@ -319,4 +322,9 @@ setInterval(() => {
 log("START", `E2E Pseudo-Host — currentTime starts at ${INITIAL_CURRENT_TIME}s`);
 log("START", `contentKey = ${currentContentKey}（参加者の U-NEXT URL の SID/ED に一致させること）`);
 log("START", `Control file: ${CONTROL_FILE}`);
-connect();
+ensureRoom()
+  .then(connect)
+  .catch((e) => {
+    log("ERROR", `startup failed: ${e.message}`);
+    process.exit(1);
+  });
