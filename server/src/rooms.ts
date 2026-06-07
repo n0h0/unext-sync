@@ -142,6 +142,33 @@ export class RoomManager {
     return [...room.clients.keys()].filter((c) => c !== room.hostId);
   }
 
+  /** ルーム全員（ホスト＋参加者）の接続中 clientId。roster送信の宛先列挙に使う。 */
+  clientIdsOf(roomId: string): string[] {
+    const room = this.rooms.get(roomId);
+    if (!room) return [];
+    return [...room.clients.keys()];
+  }
+
+  /** 表示用ロスター。先頭がホスト行、続けて参加者を挿入順で。ホストは二重に出さない。 */
+  rosterOf(roomId: string): RosterEntry[] {
+    const room = this.rooms.get(roomId);
+    if (!room) return [];
+    const entries: RosterEntry[] = [];
+    if (room.hostId !== null) {
+      // 不変条件: hostId が非nullなら必ず clients に存在する（join で set 済み）。
+      const info = room.clients.get(room.hostId);
+      entries.push({ id: room.hostId, name: info?.name ?? "", host: true, connected: true });
+    } else if (room.hostName !== null && room.hostDisconnectedAt !== null) {
+      // "__host__" は実 clientId（randomUUID）と衝突しない表示専用センチネル。WS送信先にはしない。
+      entries.push({ id: "__host__", name: room.hostName, host: true, connected: false });
+    }
+    for (const [id, info] of room.clients) {
+      if (id === room.hostId) continue;
+      entries.push({ id, name: info.name, host: false, connected: true });
+    }
+    return entries;
+  }
+
   deleteIfEmpty(roomId: string): void {
     const room = this.rooms.get(roomId);
     if (room && room.clients.size === 0) this.rooms.delete(roomId);

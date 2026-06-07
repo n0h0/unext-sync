@@ -122,3 +122,65 @@ test("normalizeName truncates by code point without splitting surrogates", () =>
   expect([...out]).toHaveLength(24);
   expect(out).toBe("😀".repeat(24));
 });
+
+test("join stores normalized name, guest fallback when empty", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "  たろう  ");
+  rm.join(roomId, "c2", "participant", undefined, "");
+  const roster = rm.rosterOf(roomId);
+  expect(roster.find((e) => e.id === "c1")?.name).toBe("たろう");
+  expect(roster.find((e) => e.id === "c2")?.name).toMatch(/^ゲスト-/);
+});
+
+test("rosterOf lists host first then participants in insertion order", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  rm.join(roomId, "c2", "participant", undefined, "はなこ");
+  rm.join(roomId, "c3", "participant", undefined, "じろう");
+  const roster = rm.rosterOf(roomId);
+  expect(roster).toEqual([
+    { id: "c1", name: "たろう", host: true, connected: true },
+    { id: "c2", name: "はなこ", host: false, connected: true },
+    { id: "c3", name: "じろう", host: false, connected: true },
+  ]);
+});
+
+test("rosterOf shows synthetic disconnected host row during hold", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  rm.join(roomId, "c2", "participant", undefined, "はなこ");
+  rm.removeClient(roomId, "c1"); // host drops, within 60s hold
+  const roster = rm.rosterOf(roomId);
+  expect(roster[0]).toEqual({ id: "__host__", name: "たろう", host: true, connected: false });
+  expect(roster.find((e) => e.id === "c2")).toEqual({
+    id: "c2",
+    name: "はなこ",
+    host: false,
+    connected: true,
+  });
+  expect(roster).toHaveLength(2);
+});
+
+test("rosterOf drops host row after timeout sweep", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  rm.join(roomId, "c2", "participant", undefined, "はなこ");
+  rm.removeClient(roomId, "c1");
+  now += 61000;
+  rm.sweepHostTimeouts();
+  const roster = rm.rosterOf(roomId);
+  expect(roster.some((e) => e.host)).toBe(false);
+  expect(roster).toHaveLength(1);
+});
+
+test("clientIdsOf returns all connected client ids including host", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  rm.join(roomId, "c2", "participant", undefined, "はなこ");
+  expect(rm.clientIdsOf(roomId).sort()).toEqual(["c1", "c2"]);
+  expect(rm.clientIdsOf("nope")).toEqual([]);
+});
+
+test("rosterOf returns empty for unknown room", () => {
+  expect(rm.rosterOf("nope")).toEqual([]);
+});
