@@ -1,3 +1,5 @@
+import type { RosterEntry } from "../../shared/protocol";
+
 export type ConnState =
   | "idle"
   | "connecting"
@@ -41,4 +43,16 @@ export function nextStateForServerEvent(event: string): ConnState | null {
     default:
       return null;
   }
+}
+
+export function rosterHeader(entries: RosterEntry[]): string {
+  return `参加者 (${entries.length})`;
+}
+
+/** ロスター1行の表示文字列。XSS回避のため呼び出し側は textContent で描画すること。 */
+export function formatRosterLine(entry: RosterEntry, selfId: string | null): string {
+  const crown = entry.host ? "👑 " : "";
+  const you = selfId !== null && entry.id === selfId ? " (あなた)" : "";
+  const offline = entry.connected ? "" : " (切断)";
+  return `${crown}${entry.name}${you}${offline}`;
 }
