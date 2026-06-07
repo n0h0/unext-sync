@@ -201,49 +201,19 @@ async function start(session: Session): Promise<void> {
   let currentVideo = video;
   let lastPathname = location.pathname;
 
-  // ホスト heartbeat：timeupdate 駆動を主、setInterval を従に（バックグラウンドのタイマースロットリング対策）。
-  let lastBeat = 0;
-  const beat = () => {
-    const t = performance.now();
-    if (t - lastBeat >= DEFAULTS.heartbeatMs) {
-      lastBeat = t;
-      orchestrator.heartbeat();
-    }
-  };
-
-  // 要素非依存の安定リスナー束（再バインドで付け外しするため参照を保持する）。
-  const eventMap: Record<string, SyncEvent> = { seeked: "seek" };
-  const mediaListeners: Array<[string, () => void]> =
-    session.role === "host"
-      ? [
-          ...["play", "pause", "seeked", "ratechange"].map(
-            (dom) =>
-              [dom, () => orchestrator.onMediaEvent(eventMap[dom] ?? (dom as SyncEvent))] as [
-                string,
-                () => void,
-              ],
-          ),
-          ["timeupdate", beat] as [string, () => void],
-        ]
-      : ["seeking", "play", "pause"].map(
-          (dom) =>
-            [
-              dom,
-              () => {
-                if (!controller.isApplying()) void orchestrator.tick();
-              },
-            ] as [string, () => void],
-        );
-
+  // 要素非依存の安定リスナー束（再バインドで付け外しするため参照を保持する）。role ごとに構築する。
+  const mediaListeners: Array<[string, () => void]> = [];
   const bindListeners = (el: HTMLVideoElement) => {
     for (const [type, fn] of mediaListeners) el.addEventListener(type, fn);
   };
   const unbindListeners = (el: HTMLVideoElement) => {
     for (const [type, fn] of mediaListeners) el.removeEventListener(type, fn);
   };
-  bindListeners(currentVideo);
 
-  // 遷移検知は1箇所に集約。各 tick から呼ぶ（host は beat、participant は orchestrator.tick と並走）。
+  // 遷移検知は1箇所に集約。各 tick から呼ぶ。
+  // 注: waitForVideo はタイムアウトを持たない（新 <video> が現れるまで待つ）。新要素が
+  // 永遠に現れない異常時は navigating が立ったままになるが、これは起動時の waitForVideo と
+  // 同じ前提で、通常の SPA 遷移では新要素は速やかに出現する（MVP 許容・spec §9 で実機確認）。
   let navigating = false;
   const maybeHandleNavigation = async () => {
     if (navigating || location.pathname === lastPathname) return;
@@ -266,11 +236,40 @@ async function start(session: Session): Promise<void> {
   };
 
   if (session.role === "host") {
+    // ホスト：mediaイベント送出＋heartbeat。timeupdate 駆動を主、setInterval を従に
+    // （バックグラウンドのタイマースロットリング対策）。
+    const eventMap: Record<string, SyncEvent> = { seeked: "seek" };
+    for (const dom of ["play", "pause", "seeked", "ratechange"]) {
+      mediaListeners.push([
+        dom,
+        () => orchestrator.onMediaEvent(eventMap[dom] ?? (dom as SyncEvent)),
+      ]);
+    }
+    let lastBeat = 0;
+    const beat = () => {
+      const t = performance.now();
+      if (t - lastBeat >= DEFAULTS.heartbeatMs) {
+        lastBeat = t;
+        orchestrator.heartbeat();
+      }
+    };
+    mediaListeners.push(["timeupdate", beat]);
+    bindListeners(currentVideo);
     setInterval(() => {
       beat();
       void maybeHandleNavigation();
     }, DEFAULTS.heartbeatMs);
   } else {
+    // 参加者：定期tickでドリフト補正＋自分の誤操作を即リコンサイル。
+    for (const dom of ["seeking", "play", "pause"]) {
+      mediaListeners.push([
+        dom,
+        () => {
+          if (!controller.isApplying()) void orchestrator.tick();
+        },
+      ]);
+    }
+    bindListeners(currentVideo);
     setInterval(() => {
       void orchestrator.tick();
       void maybeHandleNavigation();
