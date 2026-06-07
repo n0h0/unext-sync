@@ -4,6 +4,7 @@ import {
   type ConnState,
   formatRosterLine,
   isActiveSession,
+  leaveControlsVisible,
   nextStateForServerEvent,
   renderStatusLabel,
   renderWatchingTitle,
@@ -90,4 +91,18 @@ test("renderWatchingTitle shows label for a title and null otherwise", () => {
   expect(renderWatchingTitle("作品名 第3話")).toBe("🎬 視聴中: 作品名 第3話");
   expect(renderWatchingTitle(null)).toBeNull();
   expect(renderWatchingTitle("")).toBeNull();
+});
+
+test("leaveControlsVisible: idle 以外で true（セッションがある間だけ退出UIを出す）", () => {
+  const cases: [ConnState, boolean][] = [
+    ["idle", false],
+    ["connecting", true],
+    ["connected", true],
+    ["disconnected", true],
+    ["host_gone", true],
+    ["no_room", true],
+  ];
+  for (const [s, expected] of cases) {
+    expect(leaveControlsVisible(s)).toBe(expected);
+  }
 });

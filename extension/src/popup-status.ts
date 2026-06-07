@@ -50,6 +50,12 @@ export function isActiveSession(s: ConnState): boolean {
   return s === "connecting" || s === "connected";
 }
 
+/** セッションが存在する間（idle 以外）だけ退出 UI を表示する。再接続中・切断中・ホスト切断・
+ *  ルーム不在のいずれでも退出（＝停止）できるべきなので idle のみ false。 */
+export function leaveControlsVisible(s: ConnState): boolean {
+  return s !== "idle";
+}
+
 export function rosterHeader(entries: RosterEntry[]): string {
   return `参加者 (${entries.length})`;
 }
