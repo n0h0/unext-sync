@@ -68,7 +68,12 @@ CONNECT_SECRET=$SECRET node scripts/e2e-host.mjs &
 {"n": 5, "cmd": "disconnect"}        // ホスト切断シミュレート（→参加者popup「ホスト切断」）
 {"n": 6, "cmd": "reconnect"}         // 同一トークンで再join（→「接続済み」）
 {"n": 7, "cmd": "status"}            // 現在の内部状態をログ出力
+{"n": 8, "cmd": "title", "value": "別の作品 第2話"} // 視聴中タイトル変更（SPA話数遷移を模擬）
 ```
+
+擬似ホストは host-join 直後に既定タイトル `テスト作品 第1話` を送る（実拡張では content.ts が
+`joined`（role:host）で `cleanTitle(document.title)` を送出する箇所に対応）。`title` コマンドで変更すると
+サーバーが `room_title` を全員へ再配信する。ホスト自身にも `room_title` が返り `[RECVTTL]` 行に出る。
 
 ホスト切断→再接続の popup 遷移を見るときは、**popup を開いたまま**コマンドを送る必要がある
 （拡張 popup はフォーカスを外すと閉じる）。切断と再接続を数秒間隔でタイマー送信し、その間 popup を
@@ -92,6 +97,19 @@ CONNECT_SECRET=$SECRET node scripts/e2e-host.mjs &
 - [ ] `reconnect` → ホスト行の `(切断)` が消えて通常表示に戻る。
 - [ ] popup を閉じて開き直しても（get_status 復元）一覧が再表示される。
 - [ ] 名前を空欄のまま参加すると、ホスト側 `[ROSTER]` ログに `ゲスト-xxxx` が出る（サーバー合成名）。
+
+### 視聴中タイトル表示
+
+擬似ホストが送る視聴中タイトルが参加者 popup に「🎬 視聴中: …」で表示されることを実機確認する。
+WSレベルの配信（host→server `title` → 全員へ `room_title`・途中参加キャッチアップ・ライブ更新）は
+ユニット/サーバー統合テスト（`server/server.test.ts`）と擬似ホスト＋Node参加者で実証済み。ここでは
+popup の**描画**を確認する。
+
+- [ ] 参加後、popup の状態行の下に `🎬 視聴中: テスト作品 第1話` が出る（途中参加キャッチアップ）。
+- [ ] `{"cmd":"title","value":"別の作品 第2話"}` を送ると、開いている popup の表示が
+      `🎬 視聴中: 別の作品 第2話` に更新される（popup を開いたまま送る）。
+- [ ] popup を閉じて開き直しても（get_status 復元）視聴中タイトル行が再表示される。
+- [ ] タイトル変更後に新規参加した参加者は、最新タイトルをキャッチアップ表示する。
 
 ## 後始末
 
