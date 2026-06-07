@@ -117,3 +117,57 @@ test("applyTitle: only host, normalized, idempotent, rejects empty", () => {
   expect(logic.applyTitle(st, "c1", "作品名 第3話").effects).toEqual([]); // 同値
   expect(logic.applyTitle(st, "c1", "   ").effects).toEqual([]); // 空
 });
+
+test("removeClient(host) emits host_disconnected, roster, alarm at host deadline", () => {
+  nowVal = 1000;
+  const st = emptyRoom("tok");
+  logic.applyJoin(st, "h", 1, "host", "tok");
+  logic.applyJoin(st, "p", 2, "participant");
+  const r = logic.removeClient(st, "h");
+  expect(r.effects).toContainEqual({ kind: "broadcast", msg: { v: 2, type: "host_disconnected" } });
+  expect(r.effects).toContainEqual({ kind: "setAlarm", at: 61000 });
+  expect(r.state.persistent.hostId).toBeNull();
+});
+
+test("host reconnect within hold reclaims slot", () => {
+  nowVal = 1000;
+  const st = emptyRoom("tok");
+  logic.applyJoin(st, "h", 1, "host", "tok");
+  logic.removeClient(st, "h");
+  nowVal = 31000; // < 60s
+  const r = logic.applyJoin(st, "h2", 3, "host", "tok");
+  expect(r.outcome).toBe("joined-host");
+});
+
+test("sweepTimers re-arms when host deadline fires but empty cleanup remains", () => {
+  // host 切断 t=1000 → host 締切 61000
+  nowVal = 1000;
+  const st = emptyRoom("tok");
+  logic.applyJoin(st, "h", 1, "host", "tok");
+  logic.applyJoin(st, "p", 2, "participant");
+  logic.removeClient(st, "h");
+  // 参加者退出 t=40000 → emptiedAt=40000（空締切 100000）。最早は host 61000。
+  nowVal = 40000;
+  const rm = logic.removeClient(st, "p");
+  expect(rm.effects).toContainEqual({ kind: "setAlarm", at: 61000 });
+  // t=61001: host 解放、空締切(100000)は未到来 → clearStorage せず 100000 へ再武装
+  const sw1 = logic.sweepTimers(st, 61001);
+  expect(sw1.effects.some((e) => e.kind === "clearStorage")).toBe(false);
+  expect(sw1.effects).toContainEqual({ kind: "setAlarm", at: 100000 });
+  expect(sw1.state.persistent.hostDisconnectedAt).toBeNull();
+  expect(sw1.effects.some((e) => e.kind === "broadcast" && e.msg.type === "roster")).toBe(true);
+  // t=100001: 空掃除 → clearStorage
+  const sw2 = logic.sweepTimers(st, 100001);
+  expect(sw2.effects).toEqual([{ kind: "clearStorage" }]);
+});
+
+test("rosterOf shows synthetic disconnected host row during hold, dropped after sweep", () => {
+  nowVal = 1000;
+  const st = emptyRoom("tok");
+  logic.applyJoin(st, "h", 1, "host", "tok", "たろう");
+  logic.applyJoin(st, "p", 2, "participant", undefined, "はなこ");
+  logic.removeClient(st, "h");
+  expect(logic.rosterOf(st)[0]).toEqual({ id: "__host__", name: "たろう", host: true, connected: false });
+  logic.sweepTimers(st, 61001);
+  expect(logic.rosterOf(st).some((e) => e.host)).toBe(false);
+});
