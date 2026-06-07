@@ -4,13 +4,19 @@
     body { font: 14px sans-serif; width: 240px; padding: 12px; }
     input, button { width: 100%; margin: 4px 0; padding: 6px; box-sizing: border-box; }
     #status { margin-top: 8px; font-weight: bold; }
+    #rosterHeader { margin-top: 10px; font-weight: bold; color: #444; }
+    #roster div { padding: 2px 0; }
+    #roster div.offline { color: #999; }
   </style></head>
   <body>
+    <input id="name" placeholder="あなたの名前" />
     <input id="room" placeholder="ルームID（参加時）" />
     <button id="create">ルーム作成（ホスト）</button>
     <button id="join">参加（参加者）</button>
     <div id="roomId"></div>
     <div id="status">未接続</div>
+    <div id="rosterHeader"></div>
+    <div id="roster"></div>
     <script src="popup.js"></script>
   </body>
 </html>

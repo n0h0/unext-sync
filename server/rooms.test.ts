@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
 import type { SyncMessage } from "../shared/protocol";
-import { RoomManager } from "./src/rooms";
+import { normalizeName, RoomManager } from "./src/rooms";
 
 let now = 1000;
 const clock = () => now;
@@ -96,4 +96,91 @@ test("host slot released after timeout sweep", () => {
   now += 61000;
   const released = rm.sweepHostTimeouts();
   expect(released).toContain(roomId);
+});
+
+test("normalizeName trims and strips control chars", () => {
+  expect(normalizeName("  たろう  ")).toBe("たろう");
+  expect(normalizeName("abc")).toBe("abc");
+  expect(normalizeName("ab\x7fcd")).toBe("abcd");
+  expect(normalizeName("\x01\x02")).toBe("");
+});
+
+test("normalizeName truncates to 24 chars", () => {
+  expect(normalizeName("あ".repeat(40))).toBe("あ".repeat(24));
+});
+
+test("normalizeName returns empty string for non-string or empty", () => {
+  expect(normalizeName(undefined)).toBe("");
+  expect(normalizeName(42)).toBe("");
+  expect(normalizeName("   ")).toBe("");
+  expect(normalizeName(null)).toBe("");
+  expect(normalizeName({})).toBe("");
+});
+
+test("normalizeName truncates by code point without splitting surrogates", () => {
+  const out = normalizeName("😀".repeat(40));
+  expect([...out]).toHaveLength(24);
+  expect(out).toBe("😀".repeat(24));
+});
+
+test("join stores normalized name, guest fallback when empty", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "  たろう  ");
+  rm.join(roomId, "c2", "participant", undefined, "");
+  const roster = rm.rosterOf(roomId);
+  expect(roster.find((e) => e.id === "c1")?.name).toBe("たろう");
+  expect(roster.find((e) => e.id === "c2")?.name).toMatch(/^ゲスト-/);
+});
+
+test("rosterOf lists host first then participants in insertion order", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  rm.join(roomId, "c2", "participant", undefined, "はなこ");
+  rm.join(roomId, "c3", "participant", undefined, "じろう");
+  const roster = rm.rosterOf(roomId);
+  expect(roster).toEqual([
+    { id: "c1", name: "たろう", host: true, connected: true },
+    { id: "c2", name: "はなこ", host: false, connected: true },
+    { id: "c3", name: "じろう", host: false, connected: true },
+  ]);
+});
+
+test("rosterOf shows synthetic disconnected host row during hold", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  rm.join(roomId, "c2", "participant", undefined, "はなこ");
+  rm.removeClient(roomId, "c1"); // host drops, within 60s hold
+  const roster = rm.rosterOf(roomId);
+  expect(roster[0]).toEqual({ id: "__host__", name: "たろう", host: true, connected: false });
+  expect(roster.find((e) => e.id === "c2")).toEqual({
+    id: "c2",
+    name: "はなこ",
+    host: false,
+    connected: true,
+  });
+  expect(roster).toHaveLength(2);
+});
+
+test("rosterOf drops host row after timeout sweep", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  rm.join(roomId, "c2", "participant", undefined, "はなこ");
+  rm.removeClient(roomId, "c1");
+  now += 61000;
+  rm.sweepHostTimeouts();
+  const roster = rm.rosterOf(roomId);
+  expect(roster.some((e) => e.host)).toBe(false);
+  expect(roster).toHaveLength(1);
+});
+
+test("clientIdsOf returns all connected client ids including host", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  rm.join(roomId, "c2", "participant", undefined, "はなこ");
+  expect(rm.clientIdsOf(roomId).sort()).toEqual(["c1", "c2"]);
+  expect(rm.clientIdsOf("nope")).toEqual([]);
+});
+
+test("rosterOf returns empty for unknown room", () => {
+  expect(rm.rosterOf("nope")).toEqual([]);
 });

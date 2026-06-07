@@ -25,6 +25,7 @@ export interface JoinMessage {
   roomId: string;
   role: Role;
   hostToken?: string;
+  name?: string;
 }
 export interface PingMessage {
   v: number;
@@ -43,6 +44,12 @@ export interface JoinedMessage {
   v: number;
   type: "joined";
   role: Role;
+  clientId: string;
+}
+export interface HostTakenMessage {
+  v: number;
+  type: "host_taken";
+  clientId: string;
 }
 export interface StateMessage extends PlaybackFields {
   v: number;
@@ -51,7 +58,19 @@ export interface StateMessage extends PlaybackFields {
 }
 export interface HostStatusMessage {
   v: number;
-  type: "host_taken" | "host_disconnected" | "host_resumed";
+  type: "host_disconnected" | "host_resumed";
+}
+export interface RosterEntry {
+  id: string;
+  // 常に非空。クライアントが name を省略した場合はサーバーがゲスト名を合成する（rooms.join）。
+  name: string;
+  host: boolean;
+  connected: boolean;
+}
+export interface RosterMessage {
+  v: number;
+  type: "roster";
+  participants: RosterEntry[];
 }
 export interface PongMessage {
   v: number;
@@ -65,8 +84,10 @@ export interface NoRoomMessage {
 export type ServerMessage =
   | CreatedMessage
   | JoinedMessage
+  | HostTakenMessage
   | StateMessage
   | HostStatusMessage
+  | RosterMessage
   | PongMessage
   | NoRoomMessage;
 
@@ -101,7 +122,15 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       if (o.role !== "host" && o.role !== "participant") return null;
       if (o.role === "host" && o.hostToken !== undefined && typeof o.hostToken !== "string")
         return null;
-      return { v: 1, type: "join", roomId: o.roomId, role: o.role, hostToken: o.hostToken };
+      if (o.name !== undefined && typeof o.name !== "string") return null;
+      return {
+        v: 1,
+        type: "join",
+        roomId: o.roomId,
+        role: o.role,
+        hostToken: o.hostToken,
+        name: o.name,
+      };
     case "sync":
       if (!SYNC_EVENTS.includes(o.event) || !isPlayback(o)) return null;
       return {

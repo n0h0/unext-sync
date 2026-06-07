@@ -3,7 +3,7 @@
   "name": "Watch Sync (U-NEXT)",
   "version": "0.1.0",
   "description": "U-NEXTの再生状態を複数ユーザーで同期する",
-  "permissions": ["tabs"],
+  "permissions": ["tabs", "storage"],
   "host_permissions": ["https://video.unext.jp/*"],
   "action": { "default_popup": "popup.html" },
   "content_scripts": [

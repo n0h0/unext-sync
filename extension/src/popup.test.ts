@@ -1,5 +1,12 @@
 import { expect, test } from "vitest";
-import { type ConnState, nextStateForServerEvent, renderStatusLabel } from "./popup-status";
+import type { RosterEntry } from "../../shared/protocol";
+import {
+  type ConnState,
+  formatRosterLine,
+  nextStateForServerEvent,
+  renderStatusLabel,
+  rosterHeader,
+} from "./popup-status";
 
 test("maps connection states to Japanese labels", () => {
   const cases: [ConnState, string][] = [
@@ -35,4 +42,23 @@ test("maps server events to next ConnState", () => {
 test("unknown server events do not change state (null)", () => {
   expect(nextStateForServerEvent("pong")).toBeNull();
   expect(nextStateForServerEvent("bogus")).toBeNull();
+});
+
+test("rosterHeader shows participant count", () => {
+  const entries: RosterEntry[] = [
+    { id: "a", name: "たろう", host: true, connected: true },
+    { id: "b", name: "はなこ", host: false, connected: true },
+  ];
+  expect(rosterHeader(entries)).toBe("参加者 (2)");
+});
+
+test("formatRosterLine decorates host, self, and disconnected", () => {
+  const host: RosterEntry = { id: "a", name: "たろう", host: true, connected: true };
+  const me: RosterEntry = { id: "b", name: "はなこ", host: false, connected: true };
+  const gone: RosterEntry = { id: "__host__", name: "じろう", host: true, connected: false };
+  expect(formatRosterLine(host, "b")).toBe("👑 たろう");
+  expect(formatRosterLine(me, "b")).toBe("はなこ (あなた)");
+  expect(formatRosterLine(gone, "b")).toBe("👑 じろう (切断)");
+  // selfId が null のときは (あなた) を付けない
+  expect(formatRosterLine(me, null)).toBe("はなこ");
 });

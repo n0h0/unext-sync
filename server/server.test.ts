@@ -27,6 +27,13 @@ function reader(ws: WebSocket) {
   };
 }
 
+async function nextType(r: ReturnType<typeof reader>, type: string): Promise<any> {
+  for (;;) {
+    const m = await r.next();
+    if (m.type === type) return m;
+  }
+}
+
 function connect(
   port: number,
   secret: string = TEST_SECRET,
@@ -79,7 +86,7 @@ test("host sync is broadcast to participant", async () => {
     playbackRate: 1,
     seq: 1,
   });
-  const state = await guestR.next();
+  const state = await nextType(guestR, "state");
   expect(state).toMatchObject({ type: "state", event: "seek", currentTime: 345.8, seq: 1 });
 });
 
@@ -177,4 +184,76 @@ test("startServer() without arg rejects when CONNECT_SECRET env is unset", async
   } finally {
     if (saved !== undefined) process.env.CONNECT_SECRET = saved;
   }
+});
+
+test("joined carries clientId", async () => {
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
+  stop = s;
+  const { ws: host, r: hostR } = await connect(port);
+  send(host, { v: 1, type: "create" });
+  const created = await hostR.next();
+  send(host, {
+    v: 1,
+    type: "join",
+    roomId: created.roomId,
+    role: "host",
+    hostToken: created.hostToken,
+    name: "たろう",
+  });
+  const joined = await nextType(hostR, "joined");
+  expect(typeof joined.clientId).toBe("string");
+});
+
+test("roster broadcast lists host and participant with names", async () => {
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
+  stop = s;
+  const { ws: host, r: hostR } = await connect(port);
+  send(host, { v: 1, type: "create" });
+  const created = await hostR.next();
+  send(host, {
+    v: 1,
+    type: "join",
+    roomId: created.roomId,
+    role: "host",
+    hostToken: created.hostToken,
+    name: "たろう",
+  });
+  await nextType(hostR, "joined");
+
+  const { ws: guest, r: guestR } = await connect(port);
+  send(guest, { v: 1, type: "join", roomId: created.roomId, role: "participant", name: "はなこ" });
+  await nextType(guestR, "joined");
+  const roster = await nextType(guestR, "roster");
+  expect(roster.participants).toHaveLength(2);
+  expect(roster.participants[0]).toMatchObject({ name: "たろう", host: true, connected: true });
+  expect(roster.participants.find((p: any) => p.name === "はなこ")).toMatchObject({
+    host: false,
+    connected: true,
+  });
+});
+
+test("participant leaving updates roster", async () => {
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
+  stop = s;
+  const { ws: host, r: hostR } = await connect(port);
+  send(host, { v: 1, type: "create" });
+  const created = await hostR.next();
+  send(host, {
+    v: 1,
+    type: "join",
+    roomId: created.roomId,
+    role: "host",
+    hostToken: created.hostToken,
+    name: "たろう",
+  });
+  await nextType(hostR, "joined");
+  await nextType(hostR, "roster"); // host's own join → 1-entry roster (drain it)
+
+  const { ws: guest } = await connect(port);
+  send(guest, { v: 1, type: "join", roomId: created.roomId, role: "participant", name: "はなこ" });
+  await nextType(hostR, "roster"); // guest joined → host gets 2-entry roster
+  guest.close();
+  const roster = await nextType(hostR, "roster"); // guest left → back to 1 entry
+  expect(roster.participants).toHaveLength(1);
+  expect(roster.participants[0]).toMatchObject({ name: "たろう", host: true });
 });
