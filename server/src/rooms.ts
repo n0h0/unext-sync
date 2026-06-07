@@ -108,6 +108,7 @@ export class RoomManager {
       currentTime: msg.currentTime,
       playbackRate: msg.playbackRate,
       seq: msg.seq,
+      contentKey: msg.contentKey,
     };
     room.lastState = state;
     const broadcastTo = [...room.clients.keys()].filter((c) => c !== clientId);

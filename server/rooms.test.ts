@@ -232,3 +232,16 @@ test("hostTitle persists while host is disconnected within hold", () => {
   rm.removeClient(roomId, "c1"); // ホスト切断（60s保持中）
   expect(rm.hostTitleOf(roomId)).toBe("作品名");
 });
+
+test("recordSync carries contentKey into state and lastState (late join)", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken);
+  const res = rm.recordSync(roomId, "c1", {
+    ...makeSync(1),
+    contentKey: "SID0234926/ED00720092",
+  });
+  expect(res.state?.contentKey).toBe("SID0234926/ED00720092");
+  // 途中参加者は join が返す lastState 経由で contentKey を受け取る
+  const late = rm.join(roomId, "c9", "participant");
+  expect(late.lastState?.contentKey).toBe("SID0234926/ED00720092");
+});
