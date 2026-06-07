@@ -3,6 +3,7 @@ import { DEFAULTS } from "../../shared/sync-core";
 import { CONNECT_SECRET, SERVER_URL } from "./config";
 import { type ConnState, nextStateForServerEvent } from "./popup-status";
 import { SyncOrchestrator } from "./sync-orchestrator";
+import { cleanTitle } from "./title";
 import { VideoController } from "./video-controller";
 import { WsClient } from "./ws-client";
 
@@ -48,6 +49,7 @@ let currentStatus: ConnState = "idle";
 let currentRoomId: string | null = null;
 let currentRoster: RosterEntry[] = [];
 let currentSelfId: string | null = null;
+let currentTitle: string | null = null;
 
 async function start(session: Session): Promise<void> {
   if (started) return;
@@ -106,12 +108,19 @@ async function start(session: Session): Promise<void> {
       case "state":
         void orchestrator.onServerState(msg);
         break;
-      case "joined":
+      case "joined": {
+        currentSelfId = msg.clientId;
+        const next = nextStateForServerEvent("joined");
+        if (next) currentStatus = next;
+        chrome.runtime.sendMessage({ type: "server_event", event: "joined" }).catch(() => {});
+        if (msg.role === "host") startHostTitleSync();
+        break;
+      }
       case "host_taken": {
         currentSelfId = msg.clientId;
-        const next = nextStateForServerEvent(msg.type);
+        const next = nextStateForServerEvent("host_taken");
         if (next) currentStatus = next;
-        chrome.runtime.sendMessage({ type: "server_event", event: msg.type }).catch(() => {});
+        chrome.runtime.sendMessage({ type: "server_event", event: "host_taken" }).catch(() => {});
         break;
       }
       case "roster":
@@ -120,6 +129,10 @@ async function start(session: Session): Promise<void> {
           .sendMessage({ type: "roster", participants: msg.participants, selfId: currentSelfId })
           .catch(() => {});
         break;
+      case "room_title":
+        currentTitle = msg.title;
+        chrome.runtime.sendMessage({ type: "room_title", title: msg.title }).catch(() => {});
+        break;
       // host_disconnected / host_resumed / no_room はpopupへ転送（status更新）
       default: {
         const next = nextStateForServerEvent(msg.type);
@@ -127,6 +140,33 @@ async function start(session: Session): Promise<void> {
         chrome.runtime.sendMessage({ type: "server_event", event: msg.type }).catch(() => {});
       }
     }
+  }
+
+  // ホストのみ：document.title を浄化して送る。空なら送らず直前値を維持。
+  let lastSentTitle: string | null = null;
+  let titleDebounce: ReturnType<typeof setTimeout> | undefined;
+  let titleObserverInstalled = false;
+  function sendTitleIfChanged() {
+    const t = cleanTitle(document.title);
+    if (!t || t === lastSentTitle) return;
+    lastSentTitle = t;
+    client.send({ v: 1, type: "title", title: t });
+  }
+  function scheduleTitleSend() {
+    if (titleDebounce) clearTimeout(titleDebounce);
+    titleDebounce = setTimeout(sendTitleIfChanged, 1000);
+  }
+  function startHostTitleSync() {
+    lastSentTitle = null; // (再)join のたびに現在値を確実に1回送る（サーバーが同値を弾く）
+    sendTitleIfChanged();
+    if (titleObserverInstalled) return;
+    titleObserverInstalled = true;
+    // <title> の差し替え・テキスト変更の両方を拾うため head を subtree 監視する。
+    new MutationObserver(scheduleTitleSend).observe(document.head, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
   }
 
   orchestrator = new SyncOrchestrator({
@@ -197,6 +237,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       roomId: currentRoomId,
       roster: currentRoster,
       selfId: currentSelfId,
+      title: currentTitle,
     });
   }
 });
