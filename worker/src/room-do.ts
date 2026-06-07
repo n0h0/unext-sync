@@ -52,7 +52,7 @@ export class RoomDurableObject extends DurableObject {
     if (current === null || at < current) await this.ctx.storage.setAlarm(at);
   }
 
-  private applyEffects(effects: Effect[]): void {
+  private async applyEffects(effects: Effect[]): Promise<void> {
     for (const e of effects) {
       switch (e.kind) {
         case "send": {
@@ -75,7 +75,7 @@ export class RoomDurableObject extends DurableObject {
           break;
         }
         case "setAlarm":
-          void this.maybeSetAlarm(e.at);
+          await this.maybeSetAlarm(e.at);
           break;
         case "clearStorage":
           // persist 側で deleteAll するためここでは何もしない
@@ -87,7 +87,7 @@ export class RoomDurableObject extends DurableObject {
   private async commit(result: { state: RoomState; effects: Effect[] }): Promise<void> {
     const hasClear = result.effects.some((e) => e.kind === "clearStorage");
     if (!hasClear) await this.ctx.storage.put(KEY_P, result.state.persistent);
-    this.applyEffects(result.effects);
+    await this.applyEffects(result.effects);
     if (hasClear) await this.ctx.storage.deleteAll();
   }
 
