@@ -1,4 +1,4 @@
-import { type ConnState, renderStatusLabel } from "./popup-status";
+import { type ConnState, nextStateForServerEvent, renderStatusLabel } from "./popup-status";
 
 // biome-ignore lint/style/noNonNullAssertion: popup HTML elements are always present
 const $ = (id: string) => document.getElementById(id)!;
@@ -35,9 +35,6 @@ chrome.runtime.onMessage.addListener((msg) => {
     return;
   }
   if (msg?.type !== "server_event") return;
-  if (msg.event === "host_disconnected") setStatus("host_gone");
-  else if (msg.event === "host_resumed") setStatus("connected");
-  else if (msg.event === "host_taken")
-    setStatus("connected"); // participantフォールバック
-  else if (msg.event === "no_room") setStatus("no_room");
+  const next = nextStateForServerEvent(msg.event);
+  if (next) setStatus(next);
 });
