@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import type { RosterEntry } from "../../shared/protocol";
 import {
   type ConnState,
   formatRosterLine,
@@ -6,7 +7,6 @@ import {
   renderStatusLabel,
   rosterHeader,
 } from "./popup-status";
-import type { RosterEntry } from "../../shared/protocol";
 
 test("maps connection states to Japanese labels", () => {
   const cases: [ConnState, string][] = [
