@@ -27,7 +27,7 @@ if (!isWsUrl(serverUrl)) {
   console.error(
     `SERVER_URL is not a ws://|wss:// URL: ${JSON.stringify(serverUrl)}\n` +
       "Build with a valid URL, e.g.:\n" +
-      "  SERVER_URL=ws://localhost:8080 CONNECT_SECRET=$(openssl rand -hex 32) pnpm build:extension",
+      "  SERVER_URL=ws://localhost:8787 CONNECT_SECRET=$(openssl rand -hex 32) pnpm build:extension",
   );
   process.exit(1);
 }
