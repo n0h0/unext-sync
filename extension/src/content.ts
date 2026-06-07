@@ -187,6 +187,7 @@ async function start(session: Session): Promise<void> {
     } catch {
       currentStatus = "disconnected";
       chrome.runtime.sendMessage({ type: "server_event", event: "host_disconnected" }).catch(() => {});
+      started = false; // 作成失敗時はセッションを開始済みにせず、popup から再試行できるようにする
       return;
     }
   }
