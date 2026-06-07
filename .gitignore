@@ -141,3 +141,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# E2E 擬似ホストの実行時制御ファイル（scripts/e2e-host.mjs が読む。ソースではない）
+scripts/e2e-control.json
