@@ -1,4 +1,4 @@
-import type { ClientMessage, ServerMessage } from "../../shared/protocol";
+import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from "../../shared/protocol";
 import { nextBackoffMs, oneWayLatencyFromRtt } from "../../shared/sync-core";
 import { parseServerMessageLoose } from "./parse-server";
 
@@ -73,7 +73,7 @@ export class WsClient {
   sendPing(): void {
     const id = this.nextPingId++;
     this.pingSentAt.set(id, this.now());
-    this.send({ v: 1, type: "ping", id });
+    this.send({ v: PROTOCOL_VERSION, type: "ping", id });
   }
 
   oneWayLatencySec(): number {

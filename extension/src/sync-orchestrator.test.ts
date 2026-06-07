@@ -30,7 +30,7 @@ function deps(overrides: any = {}) {
 }
 
 function stateMsg(seq: number, currentTime: number, playing = true): StateMessage {
-  return { v: 1, type: "state", event: "heartbeat", playing, currentTime, playbackRate: 1, seq };
+  return { v: 2, type: "state", event: "heartbeat", playing, currentTime, playbackRate: 1, seq };
 }
 
 test("host mode: media event sends a sync with incremented seq", () => {

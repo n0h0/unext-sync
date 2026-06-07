@@ -48,8 +48,8 @@ test("incoming messages are parsed and forwarded", () => {
   const { sockets, client, onMessage } = setup();
   client.connect();
   sockets[0].open();
-  sockets[0].emit({ v: 1, type: "joined", role: "host" });
-  expect(onMessage).toHaveBeenCalledWith({ v: 1, type: "joined", role: "host" });
+  sockets[0].emit({ v: 2, type: "joined", role: "host" });
+  expect(onMessage).toHaveBeenCalledWith({ v: 2, type: "joined", role: "host" });
 });
 
 test("pong updates RTT estimate (oneWayLatencySec)", () => {
@@ -60,7 +60,7 @@ test("pong updates RTT estimate (oneWayLatencySec)", () => {
   now.mockReturnValue(1000);
   client.sendPing(); // id=1 sent at t=1000
   now.mockReturnValue(1400); // pong at t=1400 → RTT=400ms
-  sockets[0].emit({ v: 1, type: "pong", id: 1 });
+  sockets[0].emit({ v: 2, type: "pong", id: 1 });
   expect(client.oneWayLatencySec()).toBeCloseTo(0.2);
 });
 

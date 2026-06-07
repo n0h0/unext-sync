@@ -1,4 +1,4 @@
-import type { StateMessage, SyncEvent, SyncMessage } from "../../shared/protocol";
+import { PROTOCOL_VERSION, type StateMessage, type SyncEvent, type SyncMessage } from "../../shared/protocol";
 import { DEFAULTS, isStaleSeq, needsCorrection, projectedHostTime } from "../../shared/sync-core";
 import type { ReadableState } from "./video-controller";
 
@@ -42,7 +42,7 @@ export class SyncOrchestrator {
   private emit(event: SyncEvent): void {
     const s = this.deps.controller.readState();
     this.deps.client.send({
-      v: 1,
+      v: PROTOCOL_VERSION,
       type: "sync",
       event,
       playing: s.playing,
