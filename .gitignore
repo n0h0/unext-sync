@@ -144,3 +144,7 @@ vite.config.ts.timestamp-*
 
 # E2E 擬似ホストの実行時制御ファイル（scripts/e2e-host.mjs が読む。ソースではない）
 scripts/e2e-control.json
+
+# Wrangler のローカル secret（CONNECT_SECRET 等）。絶対にコミットしない
+.dev.vars
+.dev.vars.*
