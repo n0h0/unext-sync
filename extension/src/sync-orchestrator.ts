@@ -110,9 +110,12 @@ export class SyncOrchestrator {
   }
 
   // ホストの contentKey が既知かつ自分の現在キーと異なるなら apply を見送る（hold）。
-  // 未知（旧ホスト・非 play ページ）なら従来どおり適用する。
+  // - stateKey が未知（旧ホスト）なら従来どおり適用する（pass-through）。
+  // - 自分がまだ動画ページを開いていない（localContentKey が undefined）間も hold する。
   private contentMatches(stateKey: string | undefined): boolean {
-    if (stateKey === undefined) return true;
-    return stateKey === this.deps.localContentKey?.();
+    if (stateKey === undefined) return true; // ホスト側未設定（旧ホスト）→ pass-through
+    const local = this.deps.localContentKey?.();
+    if (local === undefined) return false; // 自分がまだロード中 → hold
+    return stateKey === local;
   }
 }

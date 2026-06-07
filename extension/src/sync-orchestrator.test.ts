@@ -144,3 +144,10 @@ test("participant: hold 中も lastState は更新され、一致後の tick が
   await o.tick();
   expect(d.applied.at(-1).currentTime).toBeCloseTo(103, 1);
 });
+
+test("participant: localContentKey が undefined を返す間は hold（自分が未ロード）", async () => {
+  const d = deps();
+  const o = new SyncOrchestrator({ ...d, role: "participant", localContentKey: () => undefined });
+  await o.onServerState({ ...stateMsg(1, 200), contentKey: "SID/ED2" });
+  expect(d.applied).toEqual([]);
+});
