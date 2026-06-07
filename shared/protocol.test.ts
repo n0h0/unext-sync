@@ -50,3 +50,28 @@ test("rejects wrong version, bad JSON, unknown type, missing fields", () => {
   expect(parseClientMessage(JSON.stringify({ v: 1, type: "bogus" }))).toBeNull();
   expect(parseClientMessage(JSON.stringify({ v: 1, type: "sync" }))).toBeNull();
 });
+
+test("parses join with name", () => {
+  const raw = JSON.stringify({
+    v: 1,
+    type: "join",
+    roomId: "abcd1234",
+    role: "participant",
+    name: "はなこ",
+  });
+  expect(parseClientMessage(raw)).toMatchObject({
+    type: "join",
+    role: "participant",
+    name: "はなこ",
+  });
+});
+
+test("join without name is still valid (name undefined)", () => {
+  const raw = JSON.stringify({ v: 1, type: "join", roomId: "r", role: "participant" });
+  expect(parseClientMessage(raw)).toMatchObject({ type: "join", role: "participant" });
+});
+
+test("rejects join with non-string name", () => {
+  const raw = JSON.stringify({ v: 1, type: "join", roomId: "r", role: "participant", name: 42 });
+  expect(parseClientMessage(raw)).toBeNull();
+});
