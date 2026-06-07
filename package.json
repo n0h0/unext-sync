@@ -13,7 +13,8 @@
     "format": "biome format --write .",
     "check": "biome check .",
     "check:fix": "biome check --write .",
-    "test:worker": "vitest run -c worker/vitest.config.ts"
+    "test:worker": "vitest run -c worker/vitest.config.ts",
+    "typecheck": "tsc --noEmit && tsc -p worker/tsconfig.json --noEmit"
   },
   "dependencies": {
     "ws": "^8.21.0"

@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types"],
+    "paths": {
+      "cloudflare:test": [
+        "../node_modules/@cloudflare/vitest-pool-workers/types/cloudflare-test.d.ts"
+      ]
+    }
+  },
+  "include": ["./**/*.ts", "../shared/**/*.ts"]
+}
