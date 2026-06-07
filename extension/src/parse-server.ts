@@ -1,7 +1,6 @@
 import { PROTOCOL_VERSION, type ServerMessage } from "../../shared/protocol";
 
 const TYPES = new Set([
-  "created",
   "joined",
   "state",
   "roster",
