@@ -1,7 +1,17 @@
 import { isTokenSafe } from "../../shared/secret";
+import { isWsUrl } from "../../shared/server-url";
 
-// デプロイ後の実URLに置き換える（Task 10）。
-export const SERVER_URL = "wss://unext-sync.onrender.com";
+// ビルド時に build.mjs が esbuild define で実値へ置換する。
+// 既定は本番URL、環境変数 SERVER_URL で上書き可能（E2E時は ws://localhost:8080 等）。
+declare const __SERVER_URL__: string;
+export const SERVER_URL = __SERVER_URL__;
+
+if (!isWsUrl(SERVER_URL)) {
+  throw new Error(
+    "SERVER_URL is missing or not a ws://|wss:// URL. " +
+      "Rebuild with a valid URL, e.g. `SERVER_URL=ws://localhost:8080 pnpm build:extension`.",
+  );
+}
 
 // ビルド時に build.mjs が esbuild define で実値へ置換する。コミットしない。
 declare const __CONNECT_SECRET__: string;

@@ -36,16 +36,16 @@ SECRET=$(openssl rand -hex 32)
 pnpm build:server                       # dist/server.js を生成（サーバーコード変更時のみ）
 CONNECT_SECRET=$SECRET PORT=8080 node dist/server.js &
 
-# 2. 拡張を localhost 向けにビルド
-#    extension/src/config.ts の SERVER_URL を "ws://localhost:8080" に一時変更してから:
-CONNECT_SECRET=$SECRET pnpm build:extension
+# 2. 拡張を localhost 向けにビルド（SERVER_URL を環境変数で注入。config.ts の編集は不要）
+SERVER_URL=ws://localhost:8080 CONNECT_SECRET=$SECRET pnpm build:extension
 
 # 3. 擬似ホスト起動（バックグラウンド）。出力される ROOM ID を控える
 CONNECT_SECRET=$SECRET node scripts/e2e-host.mjs &
 ```
 
-> **注意**: `extension/src/config.ts` の `SERVER_URL` を `ws://localhost:8080` に変える一時変更が必要
-> （`ws://` であって `wss://` ではない。ローカルはTLSなし）。**検証後に必ず本番URLへ戻す**。
+> **`SERVER_URL` は環境変数で注入する**（`ws://` であって `wss://` ではない。ローカルはTLSなし）。
+> 既定（未指定）では本番 `wss://unext-sync.onrender.com` が埋め込まれるので、`extension/src/config.ts` を
+> 編集する必要はない。不正なURL（`ws://|wss://` 以外）は `build.mjs` がビルド時に弾く。
 
 ## ブラウザ操作（参加者）
 
@@ -85,7 +85,8 @@ CONNECT_SECRET=$SECRET node scripts/e2e-host.mjs &
 ```bash
 pkill -f "scripts/e2e-host.mjs"      # 擬似ホスト停止
 pkill -f "node dist/server.js"       # サーバー停止
-# extension/src/config.ts の SERVER_URL を wss://unext-sync.onrender.com へ戻す
+# SERVER_URL は環境変数注入なので config.ts の差し戻しは不要。
+# 配布用に本番URLで拡張を作り直すなら: CONNECT_SECRET=<本番値> pnpm build:extension
 ```
 
 `scripts/e2e-control.json` は実行時ファイルで `.gitignore` 済み。`scripts/e2e-host.mjs` は再利用のため残置。

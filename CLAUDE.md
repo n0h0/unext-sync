@@ -96,4 +96,4 @@ extension/src/   Chrome MV3
 
 このリポジトリは superpowers スキル（TDD / brainstorming / writing-plans / executing-plans）で開発されている。`docs/superpowers/` 配下に spec と plan が蓄積される。新機能は spec → plan → TDD実装 の流れに従う。`sync-core` と `protocol` の変更は特にテストファースト（純粋関数なのでTDDが効く）。
 
-`extension/src/config.ts` の `SERVER_URL` はデプロイ先の実URL。`poc/` はPhase 0のPoC成果物（U-NEXTの`<video>`到達可否検証）で本体ビルドには含まれない。
+`SERVER_URL` は `CONNECT_SECRET` と同様にビルド時 esbuild `define` で注入する（`config.ts` の `__SERVER_URL__`）。既定は本番 `wss://unext-sync.onrender.com`、環境変数 `SERVER_URL` で上書き可能（E2E時は `SERVER_URL=ws://localhost:8080 CONNECT_SECRET=… pnpm build:extension`、`config.ts` の編集は不要）。不正なURL（`ws://|wss://` 以外）は `build.mjs` がビルド時に弾く。E2E手順は `docs/e2e-pseudo-host-testing.md`。`poc/` はPhase 0のPoC成果物（U-NEXTの`<video>`到達可否検証）で本体ビルドには含まれない。
