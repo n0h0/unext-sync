@@ -1,26 +1,338 @@
 <!doctype html>
 <html lang="ja">
-  <head><meta charset="utf-8" /><style>
-    body { font: 14px sans-serif; width: 240px; padding: 12px; }
-    input, button { width: 100%; margin: 4px 0; padding: 6px; box-sizing: border-box; }
-    #guard { margin: 4px 0 8px; padding: 6px 8px; background: #fff3cd; color: #7a5c00; border-radius: 4px; font-size: 13px; }
-    #status { margin-top: 8px; font-weight: bold; }
-    #watchingTitle { margin-top: 6px; color: #333; }
-    #rosterHeader { margin-top: 10px; font-weight: bold; color: #444; }
-    #roster div { padding: 2px 0; }
-    #roster div.offline { color: #999; }
-  </style></head>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root {
+        --bg: #0e0f13;
+        --surface: #16181f;
+        --surface-2: #1e212b;
+        --border: #2a2e3a;
+        --text: #e8eaf0;
+        --text-dim: #8a8f9e;
+        --accent: #37e0b8;
+        --accent-ink: #04130e;
+        --gold: #f5c451;
+        --idle: #6b7280;
+        --warn: #f5c451;
+        --danger: #ff5c6c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 288px;
+        margin: 0;
+        padding: 16px 16px 18px;
+        color: var(--text);
+        background:
+          radial-gradient(120% 80% at 100% 0%, rgba(55, 224, 184, 0.12), transparent 55%),
+          var(--bg);
+        border: 1px solid var(--border);
+        font-family:
+          -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+        font-size: 13px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* 開いた瞬間に段階フェードイン（1回だけ） */
+      .stack > * {
+        animation: rise 0.36s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+      }
+      .stack > *:nth-child(1) { animation-delay: 0.02s; }
+      .stack > *:nth-child(2) { animation-delay: 0.06s; }
+      .stack > *:nth-child(3) { animation-delay: 0.1s; }
+      .stack > *:nth-child(4) { animation-delay: 0.14s; }
+      .stack > *:nth-child(5) { animation-delay: 0.18s; }
+      .stack > *:nth-child(6) { animation-delay: 0.22s; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .stack > * { animation: none; }
+        .dot { animation: none !important; }
+      }
+
+      /* ---- ヘッダー ---- */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 16px;
+      }
+      header svg {
+        display: block;
+        width: 26px;
+        height: 26px;
+        flex: none;
+      }
+      .wordmark {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--text);
+      }
+      .wordmark span {
+        color: var(--accent);
+      }
+      .tagline {
+        margin-left: auto;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      /* ---- guard 警告バナー ---- */
+      #guard {
+        margin-bottom: 14px;
+        padding: 9px 11px;
+        font-size: 12px;
+        line-height: 1.45;
+        color: var(--warn);
+        background: rgba(245, 196, 81, 0.08);
+        border: 1px solid rgba(245, 196, 81, 0.35);
+        border-radius: 8px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 11px;
+      }
+
+      /* ---- フィールド ---- */
+      .field label {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+      input {
+        width: 100%;
+        padding: 9px 11px;
+        color: var(--text);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font: inherit;
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      input::placeholder {
+        color: var(--text-dim);
+      }
+      input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(55, 224, 184, 0.15);
+      }
+
+      /* ---- ボタン ---- */
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 2px;
+      }
+      button {
+        width: 100%;
+        padding: 10px 12px;
+        font: inherit;
+        font-weight: 700;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: transform 0.08s, background 0.15s, border-color 0.15s, opacity 0.15s;
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      #create {
+        color: var(--accent-ink);
+        background: var(--accent);
+        border: 1px solid var(--accent);
+        box-shadow: 0 6px 18px -8px rgba(55, 224, 184, 0.7);
+      }
+      #create:not(:disabled):hover {
+        background: #4cecc6;
+      }
+      #join {
+        color: var(--text);
+        background: transparent;
+        border: 1px solid var(--border);
+      }
+      #join:not(:disabled):hover {
+        background: var(--surface-2);
+        border-color: var(--text-dim);
+      }
+
+      /* ---- セッション情報パネル ---- */
+      .panel {
+        margin-top: 4px;
+        padding: 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+
+      /* ROOM コード行 */
+      #roomId {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+      }
+      #roomId .room-label {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        color: var(--text-dim);
+      }
+      #roomCode {
+        font-family: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: var(--accent);
+      }
+      #copyRoom {
+        width: auto;
+        margin-left: auto;
+        padding: 4px 9px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-dim);
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+      }
+      #copyRoom:hover {
+        color: var(--text);
+        border-color: var(--text-dim);
+      }
+
+      /* ステータス（色付きドット＋ラベル） */
+      #status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--idle);
+        flex: none;
+      }
+      #status[data-state="connected"] .dot {
+        background: var(--accent);
+        box-shadow: 0 0 0 3px rgba(55, 224, 184, 0.18);
+      }
+      #status[data-state="connecting"] .dot {
+        background: var(--warn);
+        animation: pulse 1s ease-in-out infinite;
+      }
+      #status[data-state="host_gone"] .dot,
+      #status[data-state="no_room"] .dot,
+      #status[data-state="disconnected"] .dot {
+        background: var(--danger);
+      }
+      @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(245, 196, 81, 0.5); }
+        50% { box-shadow: 0 0 0 5px rgba(245, 196, 81, 0); }
+      }
+
+      #watchingTitle:not(:empty) {
+        margin-top: 9px;
+        padding-top: 9px;
+        border-top: 1px solid var(--border);
+        color: var(--text);
+        font-size: 12px;
+      }
+
+      /* ロスター */
+      #rosterHeader:not(:empty) {
+        margin-top: 12px;
+        margin-bottom: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+      #roster div {
+        padding: 3px 0;
+        font-size: 13px;
+      }
+      #roster div.offline {
+        color: var(--text-dim);
+        opacity: 0.7;
+      }
+    </style>
+  </head>
   <body>
+    <header>
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="1.5" y="1.5" width="29" height="29" rx="8" fill="#16181f" stroke="#2a2e3a" />
+        <path d="M12 10.5 L21 16 L12 21.5 Z" fill="#37e0b8" />
+        <path d="M22 11.5 a6 6 0 0 1 0 9" stroke="#37e0b8" stroke-width="1.8" stroke-linecap="round" opacity="0.85" />
+        <path d="M24.6 9 a9.5 9.5 0 0 1 0 14" stroke="#37e0b8" stroke-width="1.6" stroke-linecap="round" opacity="0.4" />
+      </svg>
+      <div class="wordmark">WATCH<span>SYNC</span></div>
+      <div class="tagline">U-NEXT</div>
+    </header>
+
     <div id="guard" hidden></div>
-    <input id="name" placeholder="あなたの名前" />
-    <input id="room" placeholder="ルームID（参加時）" />
-    <button id="create">ルーム作成（ホスト）</button>
-    <button id="join">参加（参加者）</button>
-    <div id="roomId"></div>
-    <div id="status">未接続</div>
-    <div id="watchingTitle"></div>
-    <div id="rosterHeader"></div>
-    <div id="roster"></div>
+
+    <div class="stack">
+      <div class="field">
+        <label for="name">あなたの名前</label>
+        <input id="name" placeholder="あなたの名前" />
+      </div>
+      <div class="field">
+        <label for="room">ルームID（参加時）</label>
+        <input id="room" placeholder="ルームID（参加時）" />
+      </div>
+      <div class="actions">
+        <button id="create">◆ ルーム作成（ホスト）</button>
+        <button id="join">参加（参加者）</button>
+      </div>
+
+      <div class="panel">
+        <div id="roomId" hidden>
+          <span class="room-label">ROOM</span>
+          <span id="roomCode"></span>
+          <button id="copyRoom" title="ルームIDをコピー">⧉ コピー</button>
+        </div>
+        <div id="status"><span class="dot"></span><span id="statusLabel">未接続</span></div>
+        <div id="watchingTitle"></div>
+        <div id="rosterHeader"></div>
+        <div id="roster"></div>
+      </div>
+    </div>
+
     <script src="popup.js"></script>
   </body>
 </html>

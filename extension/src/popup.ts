@@ -19,8 +19,17 @@ const $ = (id: string): HTMLElement => {
 let currentState: ConnState = "idle";
 const setStatus = (s: ConnState) => {
   currentState = s;
-  $("status").textContent = renderStatusLabel(s);
+  // #status はドット＋ラベルを内包するため textContent では潰さず、ラベルだけ差し替える。
+  // data-state は CSS のドット配色・脈動アニメを駆動する（popup.html 参照）。
+  $("status").dataset.state = s;
+  $("statusLabel").textContent = renderStatusLabel(s);
 };
+
+/** ルームID行（#roomId）を表示し、コードを等幅で描画する。生IDを textContent で安全に出す。 */
+function showRoomId(id: string) {
+  $("roomCode").textContent = id;
+  ($("roomId") as HTMLElement).hidden = false;
+}
 
 function renderRoster(entries: RosterEntry[], selfId: string | null) {
   $("rosterHeader").textContent = entries.length ? rosterHeader(entries) : "";
@@ -81,13 +90,25 @@ $("join").addEventListener("click", async () => {
   });
 });
 
+$("copyRoom").addEventListener("click", async () => {
+  const code = $("roomCode").textContent;
+  if (!code) return;
+  await navigator.clipboard.writeText(code);
+  const btn = $("copyRoom");
+  const prev = btn.textContent;
+  btn.textContent = "✓ コピー済み";
+  setTimeout(() => {
+    btn.textContent = prev;
+  }, 1200);
+});
+
 // popup は開くたびに作り直されるため、開いた瞬間に現在状態を復元する。
 (async () => {
   const { name } = await chrome.storage.local.get("name");
   if (typeof name === "string") ($("name") as HTMLInputElement).value = name;
   try {
     const resp = await chrome.tabs.sendMessage(await activeTabId(), { type: "get_status" });
-    if (resp?.roomId) $("roomId").textContent = `ルームID: ${resp.roomId}（共有してください）`;
+    if (resp?.roomId) showRoomId(resp.roomId);
     if (resp?.status) setStatus(resp.status);
     if (resp?.roster) renderRoster(resp.roster, resp.selfId ?? null);
     if (resp?.title) showWatchingTitle(resp.title);
@@ -99,7 +120,7 @@ $("join").addEventListener("click", async () => {
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type === "room_created") {
-    $("roomId").textContent = `ルームID: ${msg.roomId}（共有してください）`;
+    showRoomId(msg.roomId);
     setStatus("connected");
     return;
   }

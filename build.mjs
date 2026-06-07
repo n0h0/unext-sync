@@ -47,4 +47,5 @@ await build({
 });
 await cp("extension/manifest.json", "dist/extension/manifest.json");
 await cp("extension/src/popup.html", "dist/extension/popup.html");
+await cp("extension/icons", "dist/extension/icons", { recursive: true });
 console.log("extension built -> dist/extension");

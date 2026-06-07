@@ -1,0 +1,15 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="glow" cx="74%" cy="22%" r="90%">
+      <stop offset="0%" stop-color="#1b3a35" />
+      <stop offset="55%" stop-color="#101218" />
+      <stop offset="100%" stop-color="#0e0f13" />
+    </radialGradient>
+  </defs>
+  <rect x="2" y="2" width="124" height="124" rx="28" fill="url(#glow)" stroke="#2a2e3a" stroke-width="2" />
+  <!-- play 三角 -->
+  <path d="M46 40 L80 64 L46 88 Z" fill="#37e0b8" />
+  <!-- sync パルス弧（三角の先から同心に放射） -->
+  <path d="M80 46 a20 20 0 0 1 0 36" stroke="#37e0b8" stroke-width="7" stroke-linecap="round" fill="none" opacity="0.85" />
+  <path d="M80 33 a33 33 0 0 1 0 62" stroke="#37e0b8" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.4" />
+</svg>
