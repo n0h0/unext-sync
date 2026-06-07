@@ -50,12 +50,24 @@ DOM セレクタや OGP には依存せず URL のみから導く（U-NEXT の D
 
 - `recordSync` の `state` 構築時に `contentKey: msg.contentKey` を1行コピーする。サーバーは contentKey の**中身を一切解釈しない**（ルーム/ホストの判定に使わない）。
 - `rooms.ts` は `ws` 非依存・副作用注入の不変条件を維持する（正典 §設計上の不変条件 2）。contentKey は素通しのみ。
+- **途中参加（late join）にも自動で届く**: `recordSync` が `contentKey` を `room.lastState` に格納するため、`join` が返す `lastState`（`rooms.ts:88,91,93`）にも乗り、途中参加者は最初の `state` で即座にホストの contentKey を得る。別途の配線は不要。
 
-## 4. 参加者ガード（`extension/src/sync-orchestrator.ts`）
+### 受信側パーサは変更不要（`extension/src/parse-server.ts`）
+
+`state` は新メッセージ型ではなく**既存型へのフィールド追加**である。`parseServerMessageLoose` は `state` を既に `TYPES` に含み、検証後 `return o as ServerMessage` で**全フィールドを素通し**する（`parse-server.ts:24-25`）ため、`contentKey` はそのまま `StateMessage` に届く。メモリにある「新 Server→Client 型は `parse-server.ts` の `TYPES` に追加しないと黙って破棄」の gotcha は**今回は該当しない**（型を増やさないため）。将来この loose parser を厳格化する場合は `contentKey` の通過を維持すること。
+
+## 4. ホスト送出と参加者ガード（`extension/src/sync-orchestrator.ts`）
 
 orchestrator は DOM 非依存を維持する。参加者自身の現在 contentKey は**依存注入**で渡す。
 
-- `OrchestratorDeps` に `localContentKey?: () => string | undefined` を追加。content.ts が `() => deriveContentKey(location.pathname)` を渡す。
+- `OrchestratorDeps` に `localContentKey?: () => string | undefined` を追加。content.ts が `() => deriveContentKey(location.pathname)` を渡す。この依存は role 非依存で host/participant 双方に注入されるが、**送出するのは host の `emit()` のみ**、**比較に使うのは participant のガードのみ**。
+
+### ホスト送出（`emit()`）
+
+- `emit()`（`sync-orchestrator.ts:41-52`）が `this.deps.localContentKey?.()` を読み、送信する `SyncMessage` の `contentKey` に乗せる。これがないと送信 `contentKey` が常に `undefined` となり、サーバーがコピーするのも `undefined`、参加者は常に「従来どおり適用」へ落ちて**誤シーク防止が一切働かない**（＝本機能が無効化される）。`emit()` への追記が本機能の根幹。
+- participant では `localContentKey` を送出に使わない（`emit()` 自体が host 専用経路）。
+
+### 参加者ガード
 - `onServerState` / `tick` で、**`controller.apply` の呼び出しだけをゲート**する:
   - ホストの `msg.contentKey`（または `lastState.contentKey`）が**既知**かつ参加者の `localContentKey()` と**異なる**なら → **apply をスキップ（hold）**。
   - contentKey が `undefined`（旧ホスト・非 play ページ等）なら → 従来どおり適用。
@@ -74,11 +86,15 @@ orchestrator は DOM 非依存を維持する。参加者自身の現在 content
 
 - `VideoController` に `setMedia(newEl: MediaLike): void` を追加し、内部参照を差し替えられるようにする（`apply` ガードの不変条件は維持）。
 - content.ts に、現在の `<video>` と付随リスナー（host: `play`/`pause`/`seeked`/`ratechange`/`timeupdate`、participant: `seeking`/`play`/`pause`）を束ねて再バインドできる小さな束ね役を置く。
-- 既存 tick で `location.pathname` の変化を検知したら:
+- 遷移検知ロジックは**1箇所に集約**する（pathname の前回値を1つ持ち、変化したら下記を実行する単一の関数）。tick の実体は role で異なる（host は `beat`＝`content.ts:206-214` の timeupdate+setInterval、participant は `orchestrator.tick`＝`content.ts:217`）ので、検知関数をそれぞれの tick から呼ぶ形にし、検知本体は二重化させない。
+- 検知したら:
   1. `<video>` を再取得する（`waitForVideo` 同様の MutationObserver で新要素の出現を待つ。同一要素の src 差し替えなら即座に取得できる）。
-  2. 旧要素と**異なる**ならリスナーを再バインド（古いリスナーは除去）。**同一**なら contentKey 更新のみ。
+  2. 旧要素と**異なる**ならリスナーを再バインド（古いリスナーは除去）。**同一**なら `setMedia` 更新（または何もしない）。
   3. **host は即 heartbeat を emit**（新 contentKey＋新 currentTime でズレ窓を最小化）。
-- host のみ、既存の `<title>` MutationObserver（視聴中タイトル用）を遷移トリガーとして併用してよい（emit 遅延の追加短縮。任意の最適化で、正しさは pathname チェックが担保）。
+- **role 別の責務差**:
+  - **participant**: `localContentKey` は `location.pathname` をライブに読む関数なので、**ガード自体に pathname 変化検知は不要**。検知が必要なのは `<video>` 再バインドのためだけ。
+  - **host**: 再バインドに加え、**新 contentKey での即 emit** のために検知が必要。
+- host のみ、既存の `<title>` MutationObserver（視聴中タイトル用）を遷移トリガーとして併用してよい（emit 遅延の追加短縮）。ただし**正しさは pathname チェックが単独で担保**し、title Observer は任意の前倒し最適化に留める。両者が同じ再取得関数を呼ぶようにし、検知点が分散しても処理本体は集約された1箇所を通す。
 - `seq` は遷移でリセットしない（orchestrator が生き続ける）。参加者の `lastAppliedSeq` も継続。
 
 ## 6. 不変条件の維持（正典 §設計上の不変条件）
@@ -93,12 +109,16 @@ orchestrator は DOM 非依存を維持する。参加者自身の現在 content
 
 - `deriveContentKey`（純粋関数）: play URL／別 SID／非 play ページ（undefined）／末尾スラッシュ等のバリエーション。
 - `sync-orchestrator`: 
+  - **`emit()` が `localContentKey()` の値を送信 `SyncMessage.contentKey` に乗せる**（クリティカル指摘の回帰テスト。`client.send` のスパイで検証する純粋ユニットテスト）。`localContentKey` 未注入なら `contentKey` は `undefined` で送る。
   - contentKey 不一致で `apply` が呼ばれない。
   - contentKey 一致で従来どおり `apply` される。
   - `contentKey` が `undefined`（注入なし／ホスト未送出）で従来どおり適用される（後方互換）。
   - hold 中も `lastState`・`lastReceiptMs`・`lastAppliedSeq` が更新され、一致後の `tick` が最新状態から projection する。
+- `video-controller`: **`setMedia` 差し替え後**に `readState`／`apply` が新 `MediaLike` に向く。`apply` ガード（`isApplying()`）の不変条件が差し替え後も維持される（`MediaLike` 注入で完全にユニットテスト可能）。
 - `protocol`: `parseClientMessage` が `contentKey` を通す／非 string を弾く／省略を許す。`StateMessage` 型に乗る。
-- `rooms`: `recordSync` が `msg.contentKey` を `state` に乗せる。
+- `rooms`: `recordSync` が `msg.contentKey` を `state` に乗せる。`lastState` 経由で `join` の戻り（途中参加）にも乗る。
+
+pathname 変化検知と `<video>` 再取得は DOM 結合で E2E 寄りのため実機検証（§9）に回すが、`emit` 送出・ガード・`setMedia` は単体で書けるので TDD 対象に含める。
 
 ## 8. スコープ外（今回やらない）
 
@@ -112,3 +132,4 @@ orchestrator は DOM 非依存を維持する。参加者自身の現在 content
 - `<video>` が「同一要素 src 差し替え」か「要素ごと入れ替え」かは未確定。§5 はどちらでも動くよう防御的に書く（差分検出で再バインド要否を判断）。実 E2E で確認する。
 - 遷移検知は最大 heartbeat 分（既定〜5s）遅れうるが、その間 contentKey 不一致で参加者は hold するため**誤シークは起きない**。揃うまで各自の再生が続くだけ。
 - 参加者先行時の小さな巻き戻しは完全スレーブの設計上の帰結として許容する（§4）。
+- **遷移直後の即 emit は `currentTime` が0付近になりうる**（新 `<video>` が未ロード）。だが contentKey が新しいので ep1 参加者は hold、ep2 着地済み参加者は後続 heartbeat（≤5s）で正位置に補正されるため実害は小さい。「揃った瞬間に一旦先頭近くへ、直後に正位置へ」という二段になりうる点だけ留意する。
