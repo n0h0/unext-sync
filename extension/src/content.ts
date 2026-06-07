@@ -8,6 +8,7 @@ import { DEFAULTS } from "../../shared/sync-core";
 import { CONNECT_SECRET, httpBaseFrom, SERVER_URL } from "./config";
 import { deriveContentKey } from "./content-key";
 import { type ConnState, nextStateForServerEvent } from "./popup-status";
+import { makeSessionGate } from "./session-gate";
 import { SyncOrchestrator } from "./sync-orchestrator";
 import { cleanTitle } from "./title";
 import { VideoController } from "./video-controller";
@@ -27,7 +28,7 @@ function deepFindVideo(root: Document | ShadowRoot): HTMLVideoElement | null {
   return null;
 }
 
-function waitForVideo(): Promise<HTMLVideoElement> {
+function waitForVideo(onCleanup?: (dispose: () => void) => void): Promise<HTMLVideoElement> {
   return new Promise((resolve) => {
     const found = deepFindVideo(document);
     if (found) return resolve(found);
@@ -39,6 +40,8 @@ function waitForVideo(): Promise<HTMLVideoElement> {
       }
     });
     mo.observe(document.documentElement, { childList: true, subtree: true });
+    // video 発見まで disconnect されないため、セッション破棄時に取り残さないよう解放処理を渡す
+    onCleanup?.(() => mo.disconnect());
   });
 }
 
@@ -57,11 +60,18 @@ let currentRoster: RosterEntry[] = [];
 let currentSelfId: string | null = null;
 let currentTitle: string | null = null;
 
+const gate = makeSessionGate();
+
 async function start(session: Session): Promise<void> {
   if (started) return;
   started = true;
+  const life = gate.begin();
 
-  const video = await waitForVideo();
+  const video = await waitForVideo((d) => life.add(d));
+  if (life.aborted()) {
+    life.dispose();
+    return;
+  }
   const controller = new VideoController(video);
 
   // ブラウザWebSocketをSocketLike（onmessageは文字列）に適合させるアダプタ。
@@ -91,6 +101,7 @@ async function start(session: Session): Promise<void> {
     factory: () => makeBrowserSocket(roomUrl()),
     onMessage: (msg: ServerMessage) => handleServer(msg),
   });
+  life.add(() => client.close());
 
   function handleServer(msg: ServerMessage) {
     switch (msg.type) {
@@ -151,10 +162,15 @@ async function start(session: Session): Promise<void> {
     if (titleObserverInstalled) return;
     titleObserverInstalled = true;
     // <title> の差し替え・テキスト変更の両方を拾うため head を subtree 監視する。
-    new MutationObserver(scheduleTitleSend).observe(document.head, {
+    const titleObs = new MutationObserver(scheduleTitleSend);
+    titleObs.observe(document.head, {
       subtree: true,
       childList: true,
       characterData: true,
+    });
+    life.add(() => titleObs.disconnect());
+    life.add(() => {
+      if (titleDebounce) clearTimeout(titleDebounce);
     });
   }
 
@@ -185,11 +201,16 @@ async function start(session: Session): Promise<void> {
       });
       if (!res.ok) throw new Error(`create failed: ${res.status}`);
       const data = (await res.json()) as { roomId: string; hostToken: string };
+      if (life.aborted()) {
+        life.dispose();
+        return;
+      }
       session.roomId = data.roomId;
       session.hostToken = data.hostToken;
       currentRoomId = data.roomId;
       chrome.runtime.sendMessage({ type: "room_created", roomId: data.roomId }).catch(() => {});
     } catch {
+      life.dispose();
       currentStatus = "disconnected";
       chrome.runtime
         .sendMessage({ type: "server_event", event: "host_disconnected" })
@@ -200,7 +221,8 @@ async function start(session: Session): Promise<void> {
   }
   client.connect();
   // 定期ping（RTT測定）— 接続ごとではなく一度だけ。WsClient.sendは未接続時no-op。
-  setInterval(() => client.sendPing(), DEFAULTS.pingIntervalMs);
+  const pingTimer = setInterval(() => client.sendPing(), DEFAULTS.pingIntervalMs);
+  life.add(() => clearInterval(pingTimer));
 
   // ---- SPA 話数遷移に追従するための <video> 再バインド機構 ----
   // 起動時の要素を握りっぱなしにせず、遷移で差し替わったら付け替える。
@@ -227,7 +249,8 @@ async function start(session: Session): Promise<void> {
     lastPathname = location.pathname;
     try {
       // 同一要素の src 差し替えなら即座に取得、要素ごと差し替えなら新要素の出現を待つ。
-      const next = await waitForVideo();
+      const next = await waitForVideo((d) => life.add(d));
+      if (life.aborted()) return;
       if (next !== currentVideo) {
         unbindListeners(currentVideo);
         controller.setMedia(next);
@@ -261,10 +284,12 @@ async function start(session: Session): Promise<void> {
     };
     mediaListeners.push(["timeupdate", beat]);
     bindListeners(currentVideo);
-    setInterval(() => {
+    life.add(() => unbindListeners(currentVideo));
+    const hostTick = setInterval(() => {
       beat();
       void maybeHandleNavigation();
     }, DEFAULTS.heartbeatMs);
+    life.add(() => clearInterval(hostTick));
   } else {
     // 参加者：定期tickでドリフト補正＋自分の誤操作を即リコンサイル。
     for (const dom of ["seeking", "play", "pause"]) {
@@ -276,10 +301,12 @@ async function start(session: Session): Promise<void> {
       ]);
     }
     bindListeners(currentVideo);
-    setInterval(() => {
+    life.add(() => unbindListeners(currentVideo));
+    const participantTick = setInterval(() => {
       void orchestrator.tick();
       void maybeHandleNavigation();
     }, DEFAULTS.heartbeatMs);
+    life.add(() => clearInterval(participantTick));
   }
 }
 
@@ -289,6 +316,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (started) return; // 既存セッション中は重複指示を無視（currentStatus を汚さない）
     currentStatus = "connecting";
     void start({ roomId: msg.roomId, role: msg.role, name: msg.name });
+    return;
+  }
+  if (msg?.type === "leave_session") {
+    gate.end(); // in-flight な start() を abort＋登録済み副作用を一括解放
+    started = false;
+    currentStatus = "idle";
+    currentRoomId = null;
+    currentRoster = [];
+    currentSelfId = null;
+    currentTitle = null;
     return;
   }
   if (msg?.type === "get_status") {
