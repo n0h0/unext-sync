@@ -5,6 +5,7 @@ const TYPES = new Set([
   "joined",
   "state",
   "roster",
+  "room_title",
   "host_taken",
   "host_disconnected",
   "host_resumed",

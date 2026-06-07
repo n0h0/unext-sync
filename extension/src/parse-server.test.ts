@@ -22,3 +22,10 @@ test("rejects unknown type and wrong version", () => {
   expect(parseServerMessageLoose(JSON.stringify({ v: 2, type: "roster" }))).toBeNull();
   expect(parseServerMessageLoose("not json")).toBeNull();
 });
+
+test("parses a room_title message (regression: room_title must not be dropped)", () => {
+  const raw = JSON.stringify({ v: 1, type: "room_title", title: "作品名 第3話" });
+  const msg = parseServerMessageLoose(raw);
+  expect(msg).not.toBeNull();
+  expect(msg?.type).toBe("room_title");
+});

@@ -15,6 +15,7 @@
  *   {"n": 5, "cmd": "disconnect"}
  *   {"n": 6, "cmd": "reconnect"}
  *   {"n": 7, "cmd": "status"}
+ *   {"n": 8, "cmd": "title", "value": "別の作品 第2話"}  // 視聴中タイトルを変更（SPA話数遷移を模擬）
  */
 
 import { WebSocket } from "ws";
@@ -37,6 +38,7 @@ if (!SECRET || !/^[A-Za-z0-9_-]+$/.test(SECRET)) {
 // ── 定数 ───────────────────────────────────────────────────────────────────
 const SERVER_URL = "ws://localhost:8080";
 const HOST_NAME = "ホスト(擬似)"; // roster に表示されるホスト名
+const HOST_TITLE = "テスト作品 第1話"; // 視聴中タイトル（参加者popupに「🎬 視聴中: …」で表示）
 const HEARTBEAT_INTERVAL_MS = 5000;
 const TICKER_INTERVAL_MS = 100;     // currentTime 追跡精度
 const CONTROL_POLL_MS = 200;
@@ -49,6 +51,7 @@ const state = {
   playbackRate: 1.0,
   seq: 0,
 };
+let currentTitle = HOST_TITLE; // ホストが送信中の視聴タイトル（title コマンドで変更可）
 
 // ── セッション状態 ──────────────────────────────────────────────────────────
 let ws = null;
@@ -88,6 +91,13 @@ function emitSync(event) {
   };
   send(msg);
   log("SYNC", `${event.padEnd(11)} t=${msg.currentTime.toFixed(1)}s rate=${state.playbackRate}x playing=${state.playing} seq=${state.seq}`);
+}
+
+// ── 視聴中タイトル送信（host→server。サーバーが room_title で全員へ配信） ──────
+function sendTitle(title) {
+  currentTitle = title;
+  send({ v: 1, type: "title", title });
+  log("TITLE", `→ "${title}"`);
 }
 
 // ── WS接続 ─────────────────────────────────────────────────────────────────
@@ -135,6 +145,9 @@ function connect() {
           console.log("═".repeat(60) + "\n");
           // 初回heartbeat（lastState を即座に確立）
           emitSync("heartbeat");
+          // 視聴中タイトルを送る（実拡張では content.ts が joined(host) で送出）。
+          // 再接続時もここを通るので resend され、サーバーが同値なら弾く。
+          sendTitle(currentTitle);
         } else {
           log("RECV", `joined as ${msg.role} (host slot was taken?)`);
         }
@@ -152,6 +165,11 @@ function connect() {
         log("ROSTER", `(${msg.participants?.length ?? 0}) ${rows}`);
         break;
       }
+
+      case "room_title":
+        // ホスト本人にも自分の room_title が返る（broadcast は全員宛）。配信確認用。
+        log("RECVTTL", `room_title → "${msg.title}"`);
+        break;
 
       case "pong":
         // RTT確認用（正常動作）
@@ -236,6 +254,14 @@ setInterval(() => {
       }
       break;
 
+    case "title":
+      if (typeof value === "string" && value.trim() !== "") {
+        sendTitle(value);
+      } else {
+        log("ERROR", "title requires a non-empty string value");
+      }
+      break;
+
     case "disconnect":
       log("ACTION", "Simulating host disconnect (close socket)...");
       if (ws) ws.close(1000, "manual-disconnect");
@@ -254,6 +280,7 @@ setInterval(() => {
       console.log(`  currentTime : ${state.currentTime.toFixed(2)}s`);
       console.log(`  playbackRate: ${state.playbackRate}x`);
       console.log(`  seq         : ${state.seq}`);
+      console.log(`  title       : "${currentTitle}"`);
       console.log("────────────────────────────────────────────────────\n");
       break;
 

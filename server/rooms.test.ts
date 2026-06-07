@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
 import type { SyncMessage } from "../shared/protocol";
-import { normalizeName, RoomManager } from "./src/rooms";
+import { normalizeName, normalizeText, RoomManager } from "./src/rooms";
 
 let now = 1000;
 const clock = () => now;
@@ -183,4 +183,52 @@ test("clientIdsOf returns all connected client ids including host", () => {
 
 test("rosterOf returns empty for unknown room", () => {
   expect(rm.rosterOf("nope")).toEqual([]);
+});
+
+test("normalizeText truncates by code point to the given maxLen", () => {
+  expect(normalizeText("  あ  ", 24)).toBe("あ");
+  expect(normalizeText("a\x01b", 24)).toBe("ab");
+  expect(normalizeText("😀".repeat(200), 120)).toBe("😀".repeat(120));
+  expect(normalizeText(42, 120)).toBe("");
+});
+
+test("setHostTitle accepts only the host and normalizes", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  rm.join(roomId, "c2", "participant", undefined, "はなこ");
+  // 非ホストは拒否
+  expect(rm.setHostTitle(roomId, "c2", "作品名").changed).toBe(false);
+  expect(rm.hostTitleOf(roomId)).toBeNull();
+  // ホストは受理・正規化される
+  expect(rm.setHostTitle(roomId, "c1", "  作品名 第3話  ").changed).toBe(true);
+  expect(rm.hostTitleOf(roomId)).toBe("作品名 第3話");
+});
+
+test("setHostTitle is idempotent for the same title and rejects empty", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  expect(rm.setHostTitle(roomId, "c1", "作品名").changed).toBe(true);
+  expect(rm.setHostTitle(roomId, "c1", "作品名").changed).toBe(false); // 同値
+  expect(rm.setHostTitle(roomId, "c1", "   ").changed).toBe(false); // 空は無視
+  expect(rm.hostTitleOf(roomId)).toBe("作品名"); // 直前値を維持
+});
+
+test("setHostTitle truncates to 120 code points", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  rm.setHostTitle(roomId, "c1", "あ".repeat(200));
+  expect([...(rm.hostTitleOf(roomId) ?? "")]).toHaveLength(120);
+});
+
+test("setHostTitle returns false for unknown room", () => {
+  expect(rm.setHostTitle("nope", "c1", "x").changed).toBe(false);
+  expect(rm.hostTitleOf("nope")).toBeNull();
+});
+
+test("hostTitle persists while host is disconnected within hold", () => {
+  const { roomId, hostToken } = rm.create("c1");
+  rm.join(roomId, "c1", "host", hostToken, "たろう");
+  rm.setHostTitle(roomId, "c1", "作品名");
+  rm.removeClient(roomId, "c1"); // ホスト切断（60s保持中）
+  expect(rm.hostTitleOf(roomId)).toBe("作品名");
 });

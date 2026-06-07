@@ -5,6 +5,7 @@ import {
   isActiveSession,
   nextStateForServerEvent,
   renderStatusLabel,
+  renderWatchingTitle,
   rosterHeader,
 } from "./popup-status";
 
@@ -27,6 +28,10 @@ function renderRoster(entries: RosterEntry[], selfId: string | null) {
     if (!e.connected) row.classList.add("offline");
     list.appendChild(row);
   }
+}
+
+function showWatchingTitle(title: string | null) {
+  $("watchingTitle").textContent = renderWatchingTitle(title) ?? "";
 }
 
 async function activeTabId(): Promise<number> {
@@ -71,6 +76,7 @@ $("join").addEventListener("click", async () => {
     if (resp?.roomId) $("roomId").textContent = `ルームID: ${resp.roomId}（共有してください）`;
     if (resp?.status) setStatus(resp.status);
     if (resp?.roster) renderRoster(resp.roster, resp.selfId ?? null);
+    if (resp?.title) showWatchingTitle(resp.title);
   } catch {
     // content script 未注入（U-NEXTページでない等）→ 既定の「未接続」のまま
   }
@@ -84,6 +90,10 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
   if (msg?.type === "roster") {
     renderRoster(msg.participants, msg.selfId ?? null);
+    return;
+  }
+  if (msg?.type === "room_title") {
+    showWatchingTitle(msg.title);
     return;
   }
   if (msg?.type !== "server_event") return;

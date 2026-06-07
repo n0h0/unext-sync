@@ -232,6 +232,84 @@ test("roster broadcast lists host and participant with names", async () => {
   });
 });
 
+test("host title is broadcast to participant as room_title", async () => {
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
+  stop = s;
+  const { ws: host, r: hostR } = await connect(port);
+  send(host, { v: 1, type: "create" });
+  const created = await hostR.next();
+  send(host, {
+    v: 1,
+    type: "join",
+    roomId: created.roomId,
+    role: "host",
+    hostToken: created.hostToken,
+    name: "たろう",
+  });
+  await nextType(hostR, "joined");
+
+  const { ws: guest, r: guestR } = await connect(port);
+  send(guest, { v: 1, type: "join", roomId: created.roomId, role: "participant", name: "はなこ" });
+  await nextType(guestR, "joined");
+
+  send(host, { v: 1, type: "title", title: "作品名 第3話" });
+  const rt = await nextType(guestR, "room_title");
+  expect(rt.title).toBe("作品名 第3話");
+});
+
+test("late joiner receives current room_title as catch-up", async () => {
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
+  stop = s;
+  const { ws: host, r: hostR } = await connect(port);
+  send(host, { v: 1, type: "create" });
+  const created = await hostR.next();
+  send(host, {
+    v: 1,
+    type: "join",
+    roomId: created.roomId,
+    role: "host",
+    hostToken: created.hostToken,
+    name: "たろう",
+  });
+  await nextType(hostR, "joined");
+  send(host, { v: 1, type: "title", title: "作品名 第3話" });
+  await nextType(hostR, "room_title"); // ホスト自身にも届く（drain）
+
+  const { ws: late, r: lateR } = await connect(port);
+  send(late, { v: 1, type: "join", roomId: created.roomId, role: "participant", name: "はなこ" });
+  const rt = await nextType(lateR, "room_title");
+  expect(rt.title).toBe("作品名 第3話");
+});
+
+test("title from a non-host is ignored", async () => {
+  const { port, stop: s } = await startServer(0, TEST_SECRET);
+  stop = s;
+  const { ws: host, r: hostR } = await connect(port);
+  send(host, { v: 1, type: "create" });
+  const created = await hostR.next();
+  send(host, {
+    v: 1,
+    type: "join",
+    roomId: created.roomId,
+    role: "host",
+    hostToken: created.hostToken,
+    name: "たろう",
+  });
+  await nextType(hostR, "joined");
+
+  const { ws: guest, r: guestR } = await connect(port);
+  send(guest, { v: 1, type: "join", roomId: created.roomId, role: "participant", name: "はなこ" });
+  await nextType(guestR, "joined");
+
+  await nextType(guestR, "roster"); // drain roster from guest's join
+  // 参加者が title を送っても誰にも room_title は来ない
+  send(guest, { v: 1, type: "title", title: "偽タイトル" });
+  // 後続の ping/pong で「room_title が割り込んでいない」ことを確認する
+  send(guest, { v: 1, type: "ping", id: 99 });
+  const pong = await guestR.next();
+  expect(pong).toMatchObject({ type: "pong", id: 99 });
+});
+
 test("participant leaving updates roster", async () => {
   const { port, stop: s } = await startServer(0, TEST_SECRET);
   stop = s;

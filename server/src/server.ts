@@ -82,6 +82,14 @@ export async function startServer(
       if (sock) send(sock, { v: PROTOCOL_VERSION, type: "roster", participants });
     }
   };
+  const broadcastRoomTitle = (roomId: string) => {
+    const title = rooms.hostTitleOf(roomId);
+    if (title === null) return;
+    for (const cid of rooms.clientIdsOf(roomId)) {
+      const sock = findSocket(cid);
+      if (sock) send(sock, { v: PROTOCOL_VERSION, type: "room_title", title });
+    }
+  };
 
   wss.on("connection", (ws) => {
     const ctx: ClientCtx = { id: randomUUID(), roomId: null, isAlive: true };
@@ -128,6 +136,10 @@ export async function startServer(
           }
           if (r.outcome === "joined-participant" && r.lastState) send(ws, r.lastState);
           broadcastRoster(msg.roomId);
+          const catchUpTitle = rooms.hostTitleOf(msg.roomId);
+          if (catchUpTitle !== null) {
+            send(ws, { v: PROTOCOL_VERSION, type: "room_title", title: catchUpTitle });
+          }
           break;
         }
         case "sync": {
@@ -138,6 +150,12 @@ export async function startServer(
             const sock = findSocket(cid);
             if (sock) send(sock, state);
           }
+          break;
+        }
+        case "title": {
+          if (!ctx.roomId) return;
+          const { changed } = rooms.setHostTitle(ctx.roomId, ctx.id, msg.title);
+          if (changed) broadcastRoomTitle(ctx.roomId);
           break;
         }
       }

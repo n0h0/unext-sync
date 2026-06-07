@@ -32,7 +32,12 @@ export interface PingMessage {
   type: "ping";
   id: number;
 }
-export type ClientMessage = CreateMessage | JoinMessage | SyncMessage | PingMessage;
+export interface TitleMessage {
+  v: number;
+  type: "title";
+  title: string;
+}
+export type ClientMessage = CreateMessage | JoinMessage | SyncMessage | PingMessage | TitleMessage;
 
 export interface CreatedMessage {
   v: number;
@@ -72,6 +77,11 @@ export interface RosterMessage {
   type: "roster";
   participants: RosterEntry[];
 }
+export interface RoomTitleMessage {
+  v: number;
+  type: "room_title";
+  title: string;
+}
 export interface PongMessage {
   v: number;
   type: "pong";
@@ -88,6 +98,7 @@ export type ServerMessage =
   | StateMessage
   | HostStatusMessage
   | RosterMessage
+  | RoomTitleMessage
   | PongMessage
   | NoRoomMessage;
 
@@ -142,6 +153,9 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         playbackRate: o.playbackRate,
         seq: o.seq,
       };
+    case "title":
+      if (typeof o.title !== "string") return null;
+      return { v: 1, type: "title", title: o.title };
     case "ping":
       if (!Number.isInteger(o.id)) return null;
       return { v: 1, type: "ping", id: o.id };
