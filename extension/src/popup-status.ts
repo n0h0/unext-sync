@@ -63,6 +63,14 @@ export function formatRosterLine(entry: RosterEntry, selfId: string | null): str
 }
 
 /**
+ * content script に到達できない（＝U-NEXTの再生ページ以外で popup を開いた）ときの案内文。
+ * このページでは作成／参加が機能しないことをユーザーに伝える。
+ */
+export function unavailableNotice(): string {
+  return "⚠️ U-NEXTの再生ページ（video.unext.jp）で開いてください。";
+}
+
+/**
  * 視聴中タイトルの表示文字列。title が null/空なら null（行を描画しない）。
  * XSS回避のため呼び出し側は textContent で描画すること。
  */

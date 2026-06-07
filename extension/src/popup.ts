@@ -7,6 +7,7 @@ import {
   renderStatusLabel,
   renderWatchingTitle,
   rosterHeader,
+  unavailableNotice,
 } from "./popup-status";
 
 // biome-ignore lint/style/noNonNullAssertion: popup HTML elements are always present
@@ -32,6 +33,15 @@ function renderRoster(entries: RosterEntry[], selfId: string | null) {
 
 function showWatchingTitle(title: string | null) {
   $("watchingTitle").textContent = renderWatchingTitle(title) ?? "";
+}
+
+/** content script に到達できないページ（U-NEXT再生ページ以外）で開いたときの案内＋操作無効化。 */
+function showUnavailable() {
+  const guard = $("guard");
+  guard.textContent = unavailableNotice();
+  guard.hidden = false;
+  ($("create") as HTMLButtonElement).disabled = true;
+  ($("join") as HTMLButtonElement).disabled = true;
 }
 
 async function activeTabId(): Promise<number> {
@@ -78,7 +88,8 @@ $("join").addEventListener("click", async () => {
     if (resp?.roster) renderRoster(resp.roster, resp.selfId ?? null);
     if (resp?.title) showWatchingTitle(resp.title);
   } catch {
-    // content script 未注入（U-NEXTページでない等）→ 既定の「未接続」のまま
+    // content script 未注入（U-NEXTページでない等）→ 案内を出し作成／参加を無効化する
+    showUnavailable();
   }
 })();
 

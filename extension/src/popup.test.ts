@@ -8,6 +8,7 @@ import {
   renderStatusLabel,
   renderWatchingTitle,
   rosterHeader,
+  unavailableNotice,
 } from "./popup-status";
 
 test("maps connection states to Japanese labels", () => {
@@ -77,6 +78,12 @@ test("formatRosterLine decorates host, self, and disconnected", () => {
   expect(formatRosterLine(gone, "b")).toBe("👑 じろう (切断)");
   // selfId が null のときは (あなた) を付けない
   expect(formatRosterLine(me, null)).toBe("はなこ");
+});
+
+test("unavailableNotice guides the user to open on a U-NEXT playback page", () => {
+  const notice = unavailableNotice();
+  expect(notice).toContain("U-NEXT");
+  expect(notice).toContain("video.unext.jp");
 });
 
 test("renderWatchingTitle shows label for a title and null otherwise", () => {

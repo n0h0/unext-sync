@@ -3,6 +3,7 @@
   <head><meta charset="utf-8" /><style>
     body { font: 14px sans-serif; width: 240px; padding: 12px; }
     input, button { width: 100%; margin: 4px 0; padding: 6px; box-sizing: border-box; }
+    #guard { margin: 4px 0 8px; padding: 6px 8px; background: #fff3cd; color: #7a5c00; border-radius: 4px; font-size: 13px; }
     #status { margin-top: 8px; font-weight: bold; }
     #watchingTitle { margin-top: 6px; color: #333; }
     #rosterHeader { margin-top: 10px; font-weight: bold; color: #444; }
@@ -10,6 +11,7 @@
     #roster div.offline { color: #999; }
   </style></head>
   <body>
+    <div id="guard" hidden></div>
     <input id="name" placeholder="あなたの名前" />
     <input id="room" placeholder="ルームID（参加時）" />
     <button id="create">ルーム作成（ホスト）</button>
