@@ -8,6 +8,7 @@ test("play ページの pathname から SID/ED を導く", () => {
 
 test("末尾スラッシュやクエリが付いても SID/ED を導く", () => {
   expect(deriveContentKey("/play/SID0234926/ED00720091/")).toBe("SID0234926/ED00720091");
+  expect(deriveContentKey("/play/SID0234926/ED00720091?autoplay=1")).toBe("SID0234926/ED00720091");
 });
 
 test("別シリーズは別キーになる（SID を含むため衝突しない）", () => {
