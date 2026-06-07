@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { isWsUrl } from "./server-url";
+import { httpBaseFrom, isWsUrl } from "./server-url";
 
 test("accepts wss:// and ws:// URLs", () => {
   expect(isWsUrl("wss://unext-sync.onrender.com")).toBe(true);
@@ -16,4 +16,9 @@ test("rejects missing scheme and malformed values", () => {
   expect(isWsUrl("unext-sync.onrender.com")).toBe(false);
   expect(isWsUrl("")).toBe(false);
   expect(isWsUrl("not a url")).toBe(false);
+});
+
+test("httpBaseFrom maps wss→https and ws→http", () => {
+  expect(httpBaseFrom("wss://unext-sync.example.workers.dev")).toBe("https://unext-sync.example.workers.dev");
+  expect(httpBaseFrom("ws://localhost:8787")).toBe("http://localhost:8787");
 });

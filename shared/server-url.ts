@@ -1,3 +1,8 @@
+/** ws(s):// を http(s):// へ写像する（POST /create 用のベース URL 導出）。 */
+export function httpBaseFrom(wsUrl: string): string {
+  return wsUrl.replace(/^ws/, "http");
+}
+
 /** WSリレーサーバーのURLか判定する。
  *  ブラウザの new WebSocket(url, ...) は ws:// / wss:// 以外で TypeError を投げるため、
  *  ビルド時・モジュール読込時に早期に弾いて原因を明示する。 */

@@ -1,5 +1,6 @@
 import { isTokenSafe } from "../../shared/secret";
 import { isWsUrl } from "../../shared/server-url";
+export { httpBaseFrom } from "../../shared/server-url";
 
 // ビルド時に build.mjs が esbuild define で実値へ置換する。
 // 既定は本番URL、環境変数 SERVER_URL で上書き可能（E2E時は ws://localhost:8080 等）。
