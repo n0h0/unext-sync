@@ -61,3 +61,12 @@ export function formatRosterLine(entry: RosterEntry, selfId: string | null): str
   const offline = entry.connected ? "" : " (切断)";
   return `${crown}${entry.name}${you}${offline}`;
 }
+
+/**
+ * 視聴中タイトルの表示文字列。title が null/空なら null（行を描画しない）。
+ * XSS回避のため呼び出し側は textContent で描画すること。
+ */
+export function renderWatchingTitle(title: string | null): string | null {
+  if (!title) return null;
+  return `🎬 視聴中: ${title}`;
+}

@@ -6,6 +6,7 @@ import {
   isActiveSession,
   nextStateForServerEvent,
   renderStatusLabel,
+  renderWatchingTitle,
   rosterHeader,
 } from "./popup-status";
 
@@ -76,4 +77,10 @@ test("formatRosterLine decorates host, self, and disconnected", () => {
   expect(formatRosterLine(gone, "b")).toBe("👑 じろう (切断)");
   // selfId が null のときは (あなた) を付けない
   expect(formatRosterLine(me, null)).toBe("はなこ");
+});
+
+test("renderWatchingTitle shows label for a title and null otherwise", () => {
+  expect(renderWatchingTitle("作品名 第3話")).toBe("🎬 視聴中: 作品名 第3話");
+  expect(renderWatchingTitle(null)).toBeNull();
+  expect(renderWatchingTitle("")).toBeNull();
 });
