@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export type SyncEvent = "play" | "pause" | "seek" | "ratechange" | "heartbeat";
 export type Role = "host" | "participant";
@@ -15,10 +15,6 @@ export interface SyncMessage extends PlaybackFields {
   type: "sync";
   event: SyncEvent;
   contentKey?: string;
-}
-export interface CreateMessage {
-  v: number;
-  type: "create";
 }
 export interface JoinMessage {
   v: number;
@@ -38,14 +34,8 @@ export interface TitleMessage {
   type: "title";
   title: string;
 }
-export type ClientMessage = CreateMessage | JoinMessage | SyncMessage | PingMessage | TitleMessage;
+export type ClientMessage = JoinMessage | SyncMessage | PingMessage | TitleMessage;
 
-export interface CreatedMessage {
-  v: number;
-  type: "created";
-  roomId: string;
-  hostToken: string;
-}
 export interface JoinedMessage {
   v: number;
   type: "joined";
@@ -94,7 +84,6 @@ export interface NoRoomMessage {
   type: "no_room";
 }
 export type ServerMessage =
-  | CreatedMessage
   | JoinedMessage
   | HostTakenMessage
   | StateMessage
@@ -132,15 +121,13 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   const o = parsed as Record<string, unknown>;
   if (o.v !== PROTOCOL_VERSION || typeof o.type !== "string") return null;
   switch (o.type) {
-    case "create":
-      return { v: 1, type: "create" };
     case "join":
       if (typeof o.roomId !== "string") return null;
       if (o.role !== "host" && o.role !== "participant") return null;
       if (o.hostToken !== undefined && typeof o.hostToken !== "string") return null;
       if (o.name !== undefined && typeof o.name !== "string") return null;
       return {
-        v: 1,
+        v: PROTOCOL_VERSION,
         type: "join",
         roomId: o.roomId,
         role: o.role,
@@ -151,7 +138,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       if (!isSyncEvent(o.event) || !isPlayback(o)) return null;
       if (o.contentKey !== undefined && typeof o.contentKey !== "string") return null;
       return {
-        v: 1,
+        v: PROTOCOL_VERSION,
         type: "sync",
         event: o.event,
         playing: o.playing,
@@ -162,10 +149,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       };
     case "title":
       if (typeof o.title !== "string") return null;
-      return { v: 1, type: "title", title: o.title };
+      return { v: PROTOCOL_VERSION, type: "title", title: o.title };
     case "ping":
       if (typeof o.id !== "number" || !Number.isInteger(o.id)) return null;
-      return { v: 1, type: "ping", id: o.id };
+      return { v: PROTOCOL_VERSION, type: "ping", id: o.id };
     default:
       return null;
   }
