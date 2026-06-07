@@ -1,6 +1,7 @@
 import type { RosterEntry, ServerMessage, SyncEvent } from "../../shared/protocol";
 import { DEFAULTS } from "../../shared/sync-core";
 import { CONNECT_SECRET, SERVER_URL } from "./config";
+import { deriveContentKey } from "./content-key";
 import { type ConnState, nextStateForServerEvent } from "./popup-status";
 import { SyncOrchestrator } from "./sync-orchestrator";
 import { cleanTitle } from "./title";
@@ -174,6 +175,7 @@ async function start(session: Session): Promise<void> {
     controller,
     client,
     now: () => performance.now(),
+    localContentKey: () => deriveContentKey(location.pathname),
   });
 
   client.onOpen = () => {
@@ -194,32 +196,85 @@ async function start(session: Session): Promise<void> {
   // 定期ping（RTT測定）— 接続ごとではなく一度だけ。WsClient.sendは未接続時no-op。
   setInterval(() => client.sendPing(), DEFAULTS.pingIntervalMs);
 
-  // ホスト：mediaイベント送出＋heartbeat。timeupdate駆動を主にし、setIntervalを従に。
-  if (session.role === "host") {
-    const eventMap: Record<string, SyncEvent> = { seeked: "seek" };
-    for (const dom of ["play", "pause", "seeked", "ratechange"]) {
-      video.addEventListener(dom, () =>
-        orchestrator.onMediaEvent(eventMap[dom] ?? (dom as SyncEvent)),
-      );
+  // ---- SPA 話数遷移に追従するための <video> 再バインド機構 ----
+  // 起動時の要素を握りっぱなしにせず、遷移で差し替わったら付け替える。
+  let currentVideo = video;
+  let lastPathname = location.pathname;
+
+  // ホスト heartbeat：timeupdate 駆動を主、setInterval を従に（バックグラウンドのタイマースロットリング対策）。
+  let lastBeat = 0;
+  const beat = () => {
+    const t = performance.now();
+    if (t - lastBeat >= DEFAULTS.heartbeatMs) {
+      lastBeat = t;
+      orchestrator.heartbeat();
     }
-    let lastBeat = 0;
-    const beat = () => {
-      const t = performance.now();
-      if (t - lastBeat >= DEFAULTS.heartbeatMs) {
-        lastBeat = t;
-        orchestrator.heartbeat();
+  };
+
+  // 要素非依存の安定リスナー束（再バインドで付け外しするため参照を保持する）。
+  const eventMap: Record<string, SyncEvent> = { seeked: "seek" };
+  const mediaListeners: Array<[string, () => void]> =
+    session.role === "host"
+      ? [
+          ...["play", "pause", "seeked", "ratechange"].map(
+            (dom) =>
+              [dom, () => orchestrator.onMediaEvent(eventMap[dom] ?? (dom as SyncEvent))] as [
+                string,
+                () => void,
+              ],
+          ),
+          ["timeupdate", beat] as [string, () => void],
+        ]
+      : ["seeking", "play", "pause"].map(
+          (dom) =>
+            [
+              dom,
+              () => {
+                if (!controller.isApplying()) void orchestrator.tick();
+              },
+            ] as [string, () => void],
+        );
+
+  const bindListeners = (el: HTMLVideoElement) => {
+    for (const [type, fn] of mediaListeners) el.addEventListener(type, fn);
+  };
+  const unbindListeners = (el: HTMLVideoElement) => {
+    for (const [type, fn] of mediaListeners) el.removeEventListener(type, fn);
+  };
+  bindListeners(currentVideo);
+
+  // 遷移検知は1箇所に集約。各 tick から呼ぶ（host は beat、participant は orchestrator.tick と並走）。
+  let navigating = false;
+  const maybeHandleNavigation = async () => {
+    if (navigating || location.pathname === lastPathname) return;
+    navigating = true;
+    lastPathname = location.pathname;
+    try {
+      // 同一要素の src 差し替えなら即座に取得、要素ごと差し替えなら新要素の出現を待つ。
+      const next = await waitForVideo();
+      if (next !== currentVideo) {
+        unbindListeners(currentVideo);
+        controller.setMedia(next);
+        bindListeners(next);
+        currentVideo = next;
       }
-    };
-    video.addEventListener("timeupdate", beat); // 前面では主にこちら
-    setInterval(beat, DEFAULTS.heartbeatMs); // バックグラウンドのスロットリング時の従
-  } else {
-    // 参加者：定期tickでドリフト補正＋自分の誤操作を即リコンサイル。
-    setInterval(() => void orchestrator.tick(), DEFAULTS.heartbeatMs);
-    for (const dom of ["seeking", "play", "pause"]) {
-      video.addEventListener(dom, () => {
-        if (!controller.isApplying()) void orchestrator.tick();
-      });
+      // 新 contentKey＋新 currentTime で即時通知し、ズレ窓を最小化する（host のみ）。
+      if (session.role === "host") orchestrator.heartbeat();
+    } finally {
+      navigating = false;
     }
+  };
+
+  if (session.role === "host") {
+    setInterval(() => {
+      beat();
+      void maybeHandleNavigation();
+    }, DEFAULTS.heartbeatMs);
+  } else {
+    setInterval(() => {
+      void orchestrator.tick();
+      void maybeHandleNavigation();
+    }, DEFAULTS.heartbeatMs);
   }
 }
 
