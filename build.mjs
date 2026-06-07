@@ -13,7 +13,7 @@ if (!secret || !/^[A-Za-z0-9_-]+$/.test(secret)) {
 }
 
 // 既定は本番URL。環境変数 SERVER_URL で上書き可能（E2E時に config.ts を編集せず済む）。
-const serverUrl = process.env.SERVER_URL ?? "wss://unext-sync.onrender.com";
+const serverUrl = process.env.SERVER_URL ?? "wss://unext-sync.<subdomain>.workers.dev";
 // isWsUrl（shared/server-url.ts）のミラー。.mjs は .ts を import できないため重複。
 function isWsUrl(value) {
   try {
