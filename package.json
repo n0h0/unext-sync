@@ -3,18 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run && vitest run -c worker/vitest.config.ts",
     "test:watch": "vitest",
+    "test:worker": "vitest run -c worker/vitest.config.ts",
+    "typecheck": "tsc --noEmit && tsc -p worker/tsconfig.json --noEmit",
     "build:extension": "node build.mjs",
-    "build:server": "node build-server.mjs",
-    "start": "node dist/server.js",
-    "dev:server": "tsx watch server/src/server.ts",
+    "dev:worker": "wrangler dev",
+    "deploy": "wrangler deploy",
     "lint": "biome lint .",
     "format": "biome format --write .",
     "check": "biome check .",
-    "check:fix": "biome check --write .",
-    "test:worker": "vitest run -c worker/vitest.config.ts",
-    "typecheck": "tsc --noEmit && tsc -p worker/tsconfig.json --noEmit"
+    "check:fix": "biome check --write ."
   },
   "dependencies": {
     "ws": "^8.21.0"
