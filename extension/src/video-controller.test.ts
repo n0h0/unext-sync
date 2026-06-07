@@ -60,3 +60,25 @@ test("isApplying guard is true only during apply", async () => {
   await p;
   expect(c.isApplying()).toBe(false);
 });
+
+test("setMedia 差し替え後は read が新 media を指す", () => {
+  const m1 = fakeMedia({ currentTime: 10, paused: true });
+  const m2 = fakeMedia({ currentTime: 50, paused: false });
+  const c = new VideoController(m1);
+  c.setMedia(m2);
+  expect(c.readState()).toEqual({ playing: true, currentTime: 50, playbackRate: 1 });
+});
+
+test("setMedia 後の apply は新 media を操作し、ガード不変条件を維持", async () => {
+  const m1 = fakeMedia();
+  const m2 = fakeMedia({ paused: true });
+  const c = new VideoController(m1);
+  c.setMedia(m2);
+  const p = c.apply({ playing: true, currentTime: 7, playbackRate: 1 });
+  expect(c.isApplying()).toBe(true); // ガードは同期的に立つ
+  await p;
+  expect(m2.currentTime).toBe(7);
+  expect(m2.play).toHaveBeenCalled();
+  expect(m1.play).not.toHaveBeenCalled(); // 旧 media は触らない
+  expect(c.isApplying()).toBe(false);
+});

@@ -35,6 +35,11 @@ export class VideoController {
     return this.applying;
   }
 
+  /** SPA 話数遷移で <video> 要素が差し替わったとき、内部参照を新要素に切り替える。 */
+  setMedia(media: MediaLike): void {
+    this.media = media;
+  }
+
   async apply(target: ReadableState, toleranceSec = 0): Promise<void> {
     this.applying = true;
     try {
