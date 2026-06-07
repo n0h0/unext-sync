@@ -16,6 +16,7 @@ export interface OrchestratorDeps {
   controller: OrchestratorControllerLike;
   client: OrchestratorClientLike;
   now: () => number; // monotonic ms（実環境では performance.now）
+  localContentKey?: () => string | undefined; // 自分が今どのエピソードを開いているか
 }
 
 export class SyncOrchestrator {
@@ -48,6 +49,7 @@ export class SyncOrchestrator {
       currentTime: s.currentTime,
       playbackRate: s.playbackRate,
       seq: ++this.seq,
+      contentKey: this.deps.localContentKey?.(),
     });
   }
 
@@ -58,6 +60,7 @@ export class SyncOrchestrator {
     this.lastAppliedSeq = msg.seq;
     this.lastState = msg;
     this.lastReceiptMs = this.deps.now();
+    if (!this.contentMatches(msg.contentKey)) return; // hold: bookkeeping 済み、apply のみ見送り
     const expected = this.projected();
     const tol = msg.event === "heartbeat" ? DEFAULTS.toleranceSec : 0;
     await this.deps.controller.apply(
@@ -72,6 +75,7 @@ export class SyncOrchestrator {
 
   async tick(): Promise<void> {
     if (this.deps.role !== "participant" || !this.lastState) return;
+    if (!this.contentMatches(this.lastState.contentKey)) return; // 別エピソード中は補正しない
     const expected = this.projected();
     const local = this.deps.controller.readState();
     if (needsCorrection(local.currentTime, expected, DEFAULTS.toleranceSec)) {
@@ -103,5 +107,12 @@ export class SyncOrchestrator {
     const s = this.lastState!;
     const elapsedSec = (this.deps.now() - this.lastReceiptMs) / 1000;
     return projectedHostTime(s, this.deps.client.oneWayLatencySec(), elapsedSec);
+  }
+
+  // ホストの contentKey が既知かつ自分の現在キーと異なるなら apply を見送る（hold）。
+  // 未知（旧ホスト・非 play ページ）なら従来どおり適用する。
+  private contentMatches(stateKey: string | undefined): boolean {
+    if (stateKey === undefined) return true;
+    return stateKey === this.deps.localContentKey?.();
   }
 }

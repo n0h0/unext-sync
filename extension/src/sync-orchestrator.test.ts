@@ -94,3 +94,53 @@ test("onServerState honors tolerance for heartbeat but snaps exactly for discret
   await o.onServerState({ ...stateMsg(2, 300), event: "seek" });
   expect(d.controller.apply).toHaveBeenLastCalledWith(expect.anything(), 0);
 });
+
+test("host emit: localContentKey の値を SyncMessage.contentKey に乗せる", () => {
+  const d = deps();
+  const o = new SyncOrchestrator({ ...d, role: "host", localContentKey: () => "SID/ED2" });
+  o.heartbeat();
+  expect(d.sent[0]).toMatchObject({ type: "sync", contentKey: "SID/ED2" });
+});
+
+test("host emit: localContentKey 未注入なら contentKey は undefined", () => {
+  const d = deps();
+  const o = new SyncOrchestrator({ ...d, role: "host" });
+  o.heartbeat();
+  expect(d.sent[0].contentKey).toBeUndefined();
+});
+
+test("participant: contentKey 不一致なら apply しない（hold）", async () => {
+  const d = deps();
+  const o = new SyncOrchestrator({ ...d, role: "participant", localContentKey: () => "SID/ED1" });
+  await o.onServerState({ ...stateMsg(1, 200), contentKey: "SID/ED2" });
+  expect(d.applied).toEqual([]);
+});
+
+test("participant: contentKey 一致なら従来どおり apply する", async () => {
+  const d = deps();
+  const o = new SyncOrchestrator({ ...d, role: "participant", localContentKey: () => "SID/ED2" });
+  await o.onServerState({ ...stateMsg(1, 200), contentKey: "SID/ED2" });
+  expect(d.applied[0].currentTime).toBe(200);
+});
+
+test("participant: state.contentKey が undefined なら従来どおり apply（後方互換）", async () => {
+  const d = deps();
+  const o = new SyncOrchestrator({ ...d, role: "participant", localContentKey: () => "SID/ED1" });
+  await o.onServerState(stateMsg(1, 200)); // contentKey なし
+  expect(d.applied[0].currentTime).toBe(200);
+});
+
+test("participant: hold 中も lastState は更新され、一致後の tick が projection で追従", async () => {
+  let key = "SID/ED1";
+  const d = deps({ latency: 0 });
+  const o = new SyncOrchestrator({ ...d, role: "participant", localContentKey: () => key });
+  d.setNow(1000);
+  // ホストは ep2 にいるが参加者はまだ ep1 → hold（apply されない）
+  await o.onServerState({ ...stateMsg(1, 100), contentKey: "SID/ED2" });
+  expect(d.applied).toEqual([]);
+  // 参加者が ep2 に着地 → tick で最新 lastState から projection して追従
+  key = "SID/ED2";
+  d.setNow(4000); // 3s 経過 → projected ≈ 103
+  await o.tick();
+  expect(d.applied.at(-1).currentTime).toBeCloseTo(103, 1);
+});
