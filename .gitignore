@@ -148,3 +148,6 @@ scripts/e2e-control.json
 # Wrangler のローカル secret（CONNECT_SECRET 等）。絶対にコミットしない
 .dev.vars
 .dev.vars.*
+
+# Wrangler のローカル dev 状態（DO ストレージ等）
+.wrangler/
