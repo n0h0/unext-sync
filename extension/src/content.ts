@@ -1,6 +1,6 @@
-import type { RosterEntry, ServerMessage, SyncEvent } from "../../shared/protocol";
+import { PROTOCOL_VERSION, type RosterEntry, type ServerMessage, type SyncEvent } from "../../shared/protocol";
 import { DEFAULTS } from "../../shared/sync-core";
-import { CONNECT_SECRET, SERVER_URL } from "./config";
+import { CONNECT_SECRET, httpBaseFrom, SERVER_URL } from "./config";
 import { deriveContentKey } from "./content-key";
 import { type ConnState, nextStateForServerEvent } from "./popup-status";
 import { SyncOrchestrator } from "./sync-orchestrator";
@@ -81,29 +81,14 @@ async function start(session: Session): Promise<void> {
   }
 
   let orchestrator: SyncOrchestrator;
-  const client = new WsClient(SERVER_URL, {
-    factory: () => makeBrowserSocket(SERVER_URL),
+  const roomUrl = () => `${SERVER_URL}/r/${session.roomId}`;
+  const client = new WsClient(roomUrl(), {
+    factory: () => makeBrowserSocket(roomUrl()),
     onMessage: (msg: ServerMessage) => handleServer(msg),
   });
 
   function handleServer(msg: ServerMessage) {
     switch (msg.type) {
-      case "created":
-        // hostトークンを保持してhostでjoin。roomIDをpopupへ渡して表示させる。
-        session.hostToken = msg.hostToken;
-        session.roomId = msg.roomId;
-        currentStatus = "connected";
-        currentRoomId = msg.roomId;
-        chrome.runtime.sendMessage({ type: "room_created", roomId: msg.roomId }).catch(() => {});
-        client.send({
-          v: 1,
-          type: "join",
-          roomId: msg.roomId,
-          role: "host",
-          hostToken: msg.hostToken,
-          name: session.name,
-        });
-        break;
       case "state":
         void orchestrator.onServerState(msg);
         break;
@@ -149,7 +134,7 @@ async function start(session: Session): Promise<void> {
     const t = cleanTitle(document.title);
     if (!t || t === lastSentTitle) return;
     lastSentTitle = t;
-    client.send({ v: 1, type: "title", title: t });
+    client.send({ v: PROTOCOL_VERSION, type: "title", title: t });
   }
   function scheduleTitleSend() {
     if (titleDebounce) clearTimeout(titleDebounce);
@@ -177,19 +162,34 @@ async function start(session: Session): Promise<void> {
   });
 
   client.onOpen = () => {
-    if (session.role === "host" && !session.hostToken) {
-      client.send({ v: 1, type: "create" });
-    } else {
-      client.send({
-        v: 1,
-        type: "join",
-        roomId: session.roomId,
-        role: session.role,
-        hostToken: session.hostToken,
-        name: session.name,
-      });
-    }
+    client.send({
+      v: PROTOCOL_VERSION,
+      type: "join",
+      roomId: session.roomId,
+      role: session.role,
+      hostToken: session.hostToken,
+      name: session.name,
+    });
   };
+  // ホスト（トークン未保持）はまず HTTP でルームを発行してから WS 接続する。
+  if (session.role === "host" && !session.hostToken) {
+    try {
+      const res = await fetch(`${httpBaseFrom(SERVER_URL)}/create`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${CONNECT_SECRET}` },
+      });
+      if (!res.ok) throw new Error(`create failed: ${res.status}`);
+      const data = (await res.json()) as { roomId: string; hostToken: string };
+      session.roomId = data.roomId;
+      session.hostToken = data.hostToken;
+      currentRoomId = data.roomId;
+      chrome.runtime.sendMessage({ type: "room_created", roomId: data.roomId }).catch(() => {});
+    } catch {
+      currentStatus = "disconnected";
+      chrome.runtime.sendMessage({ type: "server_event", event: "host_disconnected" }).catch(() => {});
+      return;
+    }
+  }
   client.connect();
   // 定期ping（RTT測定）— 接続ごとではなく一度だけ。WsClient.sendは未接続時no-op。
   setInterval(() => client.sendPing(), DEFAULTS.pingIntervalMs);
