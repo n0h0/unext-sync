@@ -86,3 +86,34 @@ test("applyJoin always broadcasts roster", () => {
   const r = logic.applyJoin(st, "c1", 1, "host", "tok", "た");
   expect(r.effects.some((e) => e.kind === "broadcast" && e.msg.type === "roster")).toBe(true);
 });
+
+function syncMsg(seq: number) {
+  return { v: 2 as const, type: "sync" as const, event: "heartbeat" as const, playing: true, currentTime: 10 + seq, playbackRate: 1, seq };
+}
+
+test("applySync from host broadcasts state excluding host, stores lastState", () => {
+  const st = emptyRoom("tok");
+  logic.applyJoin(st, "c1", 1, "host", "tok");
+  logic.applyJoin(st, "c2", 2, "participant");
+  const r = logic.applySync(st, "c1", syncMsg(1));
+  expect(r.effects).toEqual([{ kind: "broadcast", exclude: "c1", msg: { v: 2, type: "state", event: "heartbeat", playing: true, currentTime: 11, playbackRate: 1, seq: 1, contentKey: undefined } }]);
+  expect(r.state.persistent.lastState?.seq).toBe(1);
+});
+
+test("applySync from non-host is ignored", () => {
+  const st = emptyRoom("tok");
+  logic.applyJoin(st, "c1", 1, "host", "tok");
+  logic.applyJoin(st, "c2", 2, "participant");
+  expect(logic.applySync(st, "c2", syncMsg(1)).effects).toEqual([]);
+});
+
+test("applyTitle: only host, normalized, idempotent, rejects empty", () => {
+  const st = emptyRoom("tok");
+  logic.applyJoin(st, "c1", 1, "host", "tok");
+  logic.applyJoin(st, "c2", 2, "participant");
+  expect(logic.applyTitle(st, "c2", "作品名").effects).toEqual([]); // 非ホスト
+  const r = logic.applyTitle(st, "c1", "  作品名 第3話  ");
+  expect(r.effects).toEqual([{ kind: "broadcast", msg: { v: 2, type: "room_title", title: "作品名 第3話" } }]);
+  expect(logic.applyTitle(st, "c1", "作品名 第3話").effects).toEqual([]); // 同値
+  expect(logic.applyTitle(st, "c1", "   ").effects).toEqual([]); // 空
+});
