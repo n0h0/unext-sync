@@ -45,6 +45,11 @@ export function nextStateForServerEvent(event: string): ConnState | null {
   }
 }
 
+/** 接続中／接続済みなら true。再度の参加・作成ボタンで表示を巻き戻さない判定に使う。 */
+export function isActiveSession(s: ConnState): boolean {
+  return s === "connecting" || s === "connected";
+}
+
 export function rosterHeader(entries: RosterEntry[]): string {
   return `参加者 (${entries.length})`;
 }

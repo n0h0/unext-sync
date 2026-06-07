@@ -2,6 +2,7 @@ import type { RosterEntry } from "../../shared/protocol";
 import {
   type ConnState,
   formatRosterLine,
+  isActiveSession,
   nextStateForServerEvent,
   renderStatusLabel,
   rosterHeader,
@@ -9,7 +10,10 @@ import {
 
 // biome-ignore lint/style/noNonNullAssertion: popup HTML elements are always present
 const $ = (id: string) => document.getElementById(id)!;
+// 表示と内部状態を一元化する。currentState は再押下ガード（isActiveSession）に使う。
+let currentState: ConnState = "idle";
 const setStatus = (s: ConnState) => {
+  currentState = s;
   $("status").textContent = renderStatusLabel(s);
 };
 
@@ -36,6 +40,7 @@ function nameValue(): string {
 }
 
 $("create").addEventListener("click", async () => {
+  if (isActiveSession(currentState)) return; // 既存セッション中は表示を巻き戻さない
   const name = nameValue();
   await chrome.storage.local.set({ name });
   setStatus("connecting");
@@ -43,6 +48,7 @@ $("create").addEventListener("click", async () => {
 });
 
 $("join").addEventListener("click", async () => {
+  if (isActiveSession(currentState)) return; // 既存セッション中は表示を巻き戻さない
   const roomId = ($("room") as HTMLInputElement).value.trim();
   if (!roomId) return;
   const name = nameValue();

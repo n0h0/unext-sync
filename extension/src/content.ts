@@ -186,6 +186,7 @@ async function start(session: Session): Promise<void> {
 // popupからの開始指示／状態問い合わせを受ける
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "start_session") {
+    if (started) return; // 既存セッション中は重複指示を無視（currentStatus を汚さない）
     currentStatus = "connecting";
     void start({ roomId: msg.roomId, role: msg.role, name: msg.name });
     return;

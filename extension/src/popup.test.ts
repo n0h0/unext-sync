@@ -3,6 +3,7 @@ import type { RosterEntry } from "../../shared/protocol";
 import {
   type ConnState,
   formatRosterLine,
+  isActiveSession,
   nextStateForServerEvent,
   renderStatusLabel,
   rosterHeader,
@@ -42,6 +43,20 @@ test("maps server events to next ConnState", () => {
 test("unknown server events do not change state (null)", () => {
   expect(nextStateForServerEvent("pong")).toBeNull();
   expect(nextStateForServerEvent("bogus")).toBeNull();
+});
+
+test("isActiveSession: 接続中／接続済みのみ true（再押下で表示を巻き戻さない）", () => {
+  const cases: [ConnState, boolean][] = [
+    ["connecting", true],
+    ["connected", true],
+    ["idle", false],
+    ["disconnected", false],
+    ["host_gone", false],
+    ["no_room", false],
+  ];
+  for (const [s, expected] of cases) {
+    expect(isActiveSession(s)).toBe(expected);
+  }
 });
 
 test("rosterHeader shows participant count", () => {
