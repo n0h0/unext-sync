@@ -28,6 +28,17 @@ $("join").addEventListener("click", async () => {
   });
 });
 
+// popup は開くたびに作り直されるため、開いた瞬間に content script へ現在状態を問い合わせて復元する。
+(async () => {
+  try {
+    const resp = await chrome.tabs.sendMessage(await activeTabId(), { type: "get_status" });
+    if (resp?.roomId) $("roomId").textContent = `ルームID: ${resp.roomId}（共有してください）`;
+    if (resp?.status) setStatus(resp.status);
+  } catch {
+    // content script 未注入（U-NEXTページでない等）→ 既定の「未接続」のまま
+  }
+})();
+
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type === "room_created") {
     $("roomId").textContent = `ルームID: ${msg.roomId}（共有してください）`;

@@ -1,6 +1,7 @@
 import type { ServerMessage, SyncEvent } from "../../shared/protocol";
 import { DEFAULTS } from "../../shared/sync-core";
 import { CONNECT_SECRET, SERVER_URL } from "./config";
+import { type ConnState, nextStateForServerEvent } from "./popup-status";
 import { SyncOrchestrator } from "./sync-orchestrator";
 import { VideoController } from "./video-controller";
 import { WsClient } from "./ws-client";
@@ -40,6 +41,10 @@ interface Session {
   hostToken?: string;
 }
 let started = false;
+// popup は開くたびに破棄される一時コンテキストなので、接続状態の source of truth は
+// タブと共に生き続けるこの content script が持つ。popup は開いた瞬間に get_status で問い合わせる。
+let currentStatus: ConnState = "idle";
+let currentRoomId: string | null = null;
 
 async function start(session: Session): Promise<void> {
   if (started) return;
@@ -83,6 +88,8 @@ async function start(session: Session): Promise<void> {
         // hostトークンを保持してhostでjoin。roomIDをpopupへ渡して表示させる。
         session.hostToken = msg.hostToken;
         session.roomId = msg.roomId;
+        currentStatus = "connected";
+        currentRoomId = msg.roomId;
         chrome.runtime.sendMessage({ type: "room_created", roomId: msg.roomId }).catch(() => {});
         client.send({
           v: 1,
@@ -96,8 +103,11 @@ async function start(session: Session): Promise<void> {
         void orchestrator.onServerState(msg);
         break;
       // host_taken / host_disconnected / host_resumed はpopupへ転送（status更新）
-      default:
+      default: {
+        const next = nextStateForServerEvent(msg.type);
+        if (next) currentStatus = next;
         chrome.runtime.sendMessage({ type: "server_event", event: msg.type }).catch(() => {});
+      }
     }
   }
 
@@ -154,9 +164,14 @@ async function start(session: Session): Promise<void> {
   }
 }
 
-// popupからの開始指示を受ける
-chrome.runtime.onMessage.addListener((msg) => {
+// popupからの開始指示／状態問い合わせを受ける
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "start_session") {
+    currentStatus = "connecting";
     void start({ roomId: msg.roomId, role: msg.role });
+    return;
+  }
+  if (msg?.type === "get_status") {
+    sendResponse({ status: currentStatus, roomId: currentRoomId });
   }
 });
