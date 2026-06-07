@@ -2,8 +2,8 @@ import type { RosterEntry, StateMessage, SyncMessage } from "../../shared/protoc
 
 const MAX_NAME_LEN = 24;
 const MAX_TITLE_LEN = 120;
-// biome-ignore lint/suspicious/noControlCharactersInRegex: 信頼しない表示名から制御文字を除去する
-const CONTROL_CHARS = /[\x00-\x1f\x7f]/g;
+// 信頼しない表示名から制御文字（C0/C1 + DEL）を Unicode カテゴリで除去する。
+const CONTROL_CHARS = /\p{Cc}/gu;
 
 /** 信頼しない表示文字列を正規化する（trim・制御文字除去・maxLen コードポイントで切り詰め）。空なら "" を返す。 */
 export function normalizeText(raw: unknown, maxLen: number): string {

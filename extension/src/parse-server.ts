@@ -14,13 +14,14 @@ const TYPES = new Set([
 ]);
 
 export function parseServerMessageLoose(raw: string): ServerMessage | null {
-  // biome-ignore lint/suspicious/noExplicitAny: runtime JSON validation — unknown shape until checked
-  let o: any;
+  let parsed: unknown;
   try {
-    o = JSON.parse(raw);
+    parsed = JSON.parse(raw);
   } catch {
     return null;
   }
-  if (!o || o.v !== PROTOCOL_VERSION || !TYPES.has(o.type)) return null;
-  return o as ServerMessage;
+  if (!parsed || typeof parsed !== "object") return null;
+  const o = parsed as Record<string, unknown>;
+  if (o.v !== PROTOCOL_VERSION || typeof o.type !== "string" || !TYPES.has(o.type)) return null;
+  return o as unknown as ServerMessage;
 }

@@ -106,8 +106,11 @@ export type ServerMessage =
 
 const SYNC_EVENTS: SyncEvent[] = ["play", "pause", "seek", "ratechange", "heartbeat"];
 
-// biome-ignore lint/suspicious/noExplicitAny: runtime JSON validation — unknown shape until checked
-function isPlayback(o: any): boolean {
+function isSyncEvent(x: unknown): x is SyncEvent {
+  return typeof x === "string" && (SYNC_EVENTS as string[]).includes(x);
+}
+
+function isPlayback(o: Record<string, unknown>): o is Record<string, unknown> & PlaybackFields {
   return (
     typeof o.playing === "boolean" &&
     typeof o.currentTime === "number" &&
@@ -119,22 +122,22 @@ function isPlayback(o: any): boolean {
 }
 
 export function parseClientMessage(raw: string): ClientMessage | null {
-  // biome-ignore lint/suspicious/noExplicitAny: runtime JSON validation — unknown shape until checked
-  let o: any;
+  let parsed: unknown;
   try {
-    o = JSON.parse(raw);
+    parsed = JSON.parse(raw);
   } catch {
     return null;
   }
-  if (!o || o.v !== PROTOCOL_VERSION || typeof o.type !== "string") return null;
+  if (!parsed || typeof parsed !== "object") return null;
+  const o = parsed as Record<string, unknown>;
+  if (o.v !== PROTOCOL_VERSION || typeof o.type !== "string") return null;
   switch (o.type) {
     case "create":
       return { v: 1, type: "create" };
     case "join":
       if (typeof o.roomId !== "string") return null;
       if (o.role !== "host" && o.role !== "participant") return null;
-      if (o.role === "host" && o.hostToken !== undefined && typeof o.hostToken !== "string")
-        return null;
+      if (o.hostToken !== undefined && typeof o.hostToken !== "string") return null;
       if (o.name !== undefined && typeof o.name !== "string") return null;
       return {
         v: 1,
@@ -145,7 +148,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         name: o.name,
       };
     case "sync":
-      if (!SYNC_EVENTS.includes(o.event) || !isPlayback(o)) return null;
+      if (!isSyncEvent(o.event) || !isPlayback(o)) return null;
       if (o.contentKey !== undefined && typeof o.contentKey !== "string") return null;
       return {
         v: 1,
@@ -161,7 +164,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       if (typeof o.title !== "string") return null;
       return { v: 1, type: "title", title: o.title };
     case "ping":
-      if (!Number.isInteger(o.id)) return null;
+      if (typeof o.id !== "number" || !Number.isInteger(o.id)) return null;
       return { v: 1, type: "ping", id: o.id };
     default:
       return null;

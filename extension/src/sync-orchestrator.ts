@@ -61,7 +61,7 @@ export class SyncOrchestrator {
     this.lastState = msg;
     this.lastReceiptMs = this.deps.now();
     if (!this.contentMatches(msg.contentKey)) return; // hold: bookkeeping 済み、apply のみ見送り
-    const expected = this.projected();
+    const expected = this.projected(msg);
     const tol = msg.event === "heartbeat" ? DEFAULTS.toleranceSec : 0;
     await this.deps.controller.apply(
       {
@@ -76,7 +76,7 @@ export class SyncOrchestrator {
   async tick(): Promise<void> {
     if (this.deps.role !== "participant" || !this.lastState) return;
     if (!this.contentMatches(this.lastState.contentKey)) return; // 別エピソード中は補正しない
-    const expected = this.projected();
+    const expected = this.projected(this.lastState);
     const local = this.deps.controller.readState();
     if (needsCorrection(local.currentTime, expected, DEFAULTS.toleranceSec)) {
       await this.deps.controller.apply(
@@ -102,9 +102,7 @@ export class SyncOrchestrator {
     }
   }
 
-  private projected(): number {
-    // biome-ignore lint/style/noNonNullAssertion: projected() is only called when lastState is set
-    const s = this.lastState!;
+  private projected(s: StateMessage): number {
     const elapsedSec = (this.deps.now() - this.lastReceiptMs) / 1000;
     return projectedHostTime(s, this.deps.client.oneWayLatencySec(), elapsedSec);
   }

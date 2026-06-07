@@ -10,8 +10,11 @@ import {
   unavailableNotice,
 } from "./popup-status";
 
-// biome-ignore lint/style/noNonNullAssertion: popup HTML elements are always present
-const $ = (id: string) => document.getElementById(id)!;
+const $ = (id: string): HTMLElement => {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`missing element #${id}`);
+  return el;
+};
 // 表示と内部状態を一元化する。currentState は再押下ガード（isActiveSession）に使う。
 let currentState: ConnState = "idle";
 const setStatus = (s: ConnState) => {
@@ -46,8 +49,9 @@ function showUnavailable() {
 
 async function activeTabId(): Promise<number> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  // biome-ignore lint/style/noNonNullAssertion: tab.id is always set for active tabs
-  return tab.id!;
+  const id = tab?.id;
+  if (id === undefined) throw new Error("no active tab");
+  return id;
 }
 
 function nameValue(): string {

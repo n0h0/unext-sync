@@ -69,12 +69,10 @@ async function start(session: Session): Promise<void> {
       send: (d: string) => raw.send(d),
       close: () => raw.close(),
       set onopen(fn: (() => void) | null) {
-        // biome-ignore lint/suspicious/noExplicitAny: bridging browser WebSocket handler types
-        raw.onopen = fn as any;
+        raw.onopen = fn ? () => fn() : null;
       },
       set onclose(fn: (() => void) | null) {
-        // biome-ignore lint/suspicious/noExplicitAny: bridging browser WebSocket handler types
-        raw.onclose = fn as any;
+        raw.onclose = fn ? () => fn() : null;
       },
       set onmessage(fn: ((data: string) => void) | null) {
         raw.onmessage = fn ? (ev: MessageEvent) => fn(String(ev.data)) : null;
