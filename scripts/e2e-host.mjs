@@ -68,7 +68,7 @@ let ws = null;
 let roomId = null;
 let hostToken = null;
 let hostJoined = false;
-let lastControlN = -1;
+let lastControlN = -1; // 起動直後に制御ファイルの現在値で基準化する（下の setInterval 直前）。
 let lastTickMs = null;
 
 // ── ロギング ────────────────────────────────────────────────────────────────
@@ -227,6 +227,14 @@ function readControl() {
   } catch {
     return null;
   }
+}
+
+// 起動時点で制御ファイルに残っている n を基準にする。これをしないと、前回セッションの
+// コマンド（例: コミット済み既定や直前の disconnect/reconnect）が起動直後に発火し、
+// 意図しないホスト再接続などのアーティファクトを生む。基準化後はインクリメントだけに反応する。
+{
+  const initial = readControl();
+  if (initial && typeof initial.n === "number") lastControlN = initial.n;
 }
 
 setInterval(() => {

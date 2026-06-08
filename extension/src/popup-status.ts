@@ -59,6 +59,21 @@ export function leaveControlsVisible(s: ConnState): boolean {
   return s !== "idle" && s !== "no_room";
 }
 
+/** name/room 入力をロックすべきか。セッションが生きている間（退出ボタン表示と1対1）。 */
+export function setupFormLocked(s: ConnState): boolean {
+  return leaveControlsVisible(s);
+}
+
+/**
+ * create/join ボタンを無効化すべきか。無効化理由は2つあり、その OR を取る:
+ *  - セッション中（setupFormLocked）= 退出するまで作り直せない
+ *  - 再生ページ以外（!onPlayer）= 再生状態同期が意味を持たない
+ * ボタン disabled の「単一の真実源」とする。
+ */
+export function actionButtonsDisabled(onPlayer: boolean, s: ConnState): boolean {
+  return setupFormLocked(s) || !onPlayer;
+}
+
 /**
  * サーバーが WS ルーティングを受理するルームID形式（英数字1〜32文字、worker の
  * `/^\/r\/([A-Za-z0-9]{1,32})$/` と一致）。これ以外（日本語・記号・空白など）で接続すると
@@ -70,11 +85,12 @@ export function isValidRoomId(s: string): boolean {
 }
 
 /**
- * 作成/参加を無効化すべきか。再生ページ以外（onPlayer=false）かつセッション未確立のとき true。
- * 再生状態の同期は再生ページ（/play/{SID}/{ED}）でしか意味を持たないため、再生ページ以外では
- * ルーム作成・参加を禁止する。既存セッション中（接続中/接続済み）は表示を巻き戻さないよう false。
+ * 再生ページ以外の「再生ページで開いてください」案内（showUnavailable）を出すべきか。
+ * 再生ページ以外（onPlayer=false）かつセッション未確立のとき true。再生状態の同期は再生ページ
+ * （/play/{SID}/{ED}）でしか意味を持たないため。既存セッション中（接続中/接続済み）は案内を出さない。
+ * ボタン自体の disabled 判定は actionButtonsDisabled が「単一の真実源」として担う（このフラグは案内の表示ゲート）。
  */
-export function shouldDisableControls(onPlayer: boolean, status: ConnState): boolean {
+export function shouldShowUnavailable(onPlayer: boolean, status: ConnState): boolean {
   return !onPlayer && !isActiveSession(status);
 }
 
