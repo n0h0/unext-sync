@@ -59,6 +59,21 @@ export function leaveControlsVisible(s: ConnState): boolean {
   return s !== "idle" && s !== "no_room";
 }
 
+/** name/room 入力をロックすべきか。セッションが生きている間（退出ボタン表示と1対1）。 */
+export function setupFormLocked(s: ConnState): boolean {
+  return leaveControlsVisible(s);
+}
+
+/**
+ * create/join ボタンを無効化すべきか。無効化理由は2つあり、その OR を取る:
+ *  - セッション中（setupFormLocked）= 退出するまで作り直せない
+ *  - 再生ページ以外（!onPlayer）= 再生状態同期が意味を持たない
+ * ボタン disabled の「単一の真実源」とする。
+ */
+export function actionButtonsDisabled(onPlayer: boolean, s: ConnState): boolean {
+  return setupFormLocked(s) || !onPlayer;
+}
+
 /**
  * サーバーが WS ルーティングを受理するルームID形式（英数字1〜32文字、worker の
  * `/^\/r\/([A-Za-z0-9]{1,32})$/` と一致）。これ以外（日本語・記号・空白など）で接続すると
