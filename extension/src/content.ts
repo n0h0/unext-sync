@@ -106,6 +106,9 @@ async function start(session: Session): Promise<void> {
   life.add(() => client.close());
 
   function handleServer(msg: ServerMessage) {
+    // 退出後（close() 後）に遅延到達したメッセージで idle 状態を汚さず、解放済みセッションへ
+    // 副作用（title observer 等）を再登録してリークさせないためのガード。
+    if (life.aborted()) return;
     switch (msg.type) {
       case "state":
         void orchestrator.onServerState(msg);
