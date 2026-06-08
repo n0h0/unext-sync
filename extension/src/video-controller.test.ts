@@ -66,13 +66,57 @@ test("isApplying guard is true during apply and through the settle window", asyn
   expect(c.isApplying()).toBe(false);
 });
 
-test("apply notifies onPlayRejected when play() rejects (autoplay block)", async () => {
+test("apply notifies onPlayRejected with the error when play() rejects (autoplay block)", async () => {
   const m = fakeMedia({ paused: true });
-  m.play = vi.fn(() => Promise.reject(new Error("NotAllowedError")));
+  const err = new DOMException("blocked", "NotAllowedError");
+  m.play = vi.fn(() => Promise.reject(err));
   const onPlayRejected = vi.fn();
   const c = new VideoController(m, { onPlayRejected });
   await c.apply({ playing: true, currentTime: 5, playbackRate: 1 });
   expect(onPlayRejected).toHaveBeenCalledTimes(1);
+  expect(onPlayRejected).toHaveBeenCalledWith(err); // 呼び出し側がエラー型で分岐できる
+});
+
+test("onPlayRejected が投げても apply は巻き込まれない（failsafe 経路の二重 failure 防止）", async () => {
+  const m = fakeMedia({ paused: true });
+  m.play = vi.fn(() => Promise.reject(new Error("blocked")));
+  const c = new VideoController(m, {
+    onPlayRejected: () => {
+      throw new Error("notifier exploded");
+    },
+  });
+  // apply 自体は reject せず解決する
+  await expect(
+    c.apply({ playing: true, currentTime: 5, playbackRate: 1 }),
+  ).resolves.toBeUndefined();
+});
+
+test("ネスト/並行 apply: 沈静化ウィンドウは最外 apply 完了時にのみ開く", async () => {
+  let t = 0;
+  let resolveOuterPlay!: () => void;
+  const m = fakeMedia({ paused: true });
+  m.play = vi.fn(
+    () =>
+      new Promise<void>((res) => {
+        resolveOuterPlay = () => {
+          m.paused = false;
+          res();
+        };
+      }),
+  );
+  const c = new VideoController(m, { now: () => t, settleMs: 50 });
+
+  const outer = c.apply({ playing: true, currentTime: 5, playbackRate: 1 }); // play() pending → depth=1
+  // 外側 play() が pending の間に、即完了する内側 apply（pause 系・既に paused なので非同期なし）を走らせる
+  await c.apply({ playing: false, currentTime: 5, playbackRate: 1 }); // depth 2→1、ウィンドウは開かない
+  t = 1000; // 時間を進めても外側が pending の間は…
+  expect(c.isApplying()).toBe(true); // applyDepth>0 のため true
+
+  resolveOuterPlay();
+  await outer; // depth 1→0 → ここで初めて settleUntil = now(1000)+50
+  expect(c.isApplying()).toBe(true); // 沈静化ウィンドウ中
+  t = 1051;
+  expect(c.isApplying()).toBe(false);
 });
 
 test("apply does not call onPlayRejected when play() succeeds", async () => {

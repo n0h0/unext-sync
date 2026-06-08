@@ -71,8 +71,9 @@ export class RoomDurableObject extends DurableObject {
           break;
         }
         case "setAlarm":
-          // reducer が毎回「現在状態の最早締切」を権威的に出すため上書きが正しい
-          // （古い締切は state 上で既に無効化されている）。
+          // reducer が出す setAlarm 効果は「現在状態の最早締切」を権威的に表すため上書きが正しい
+          // （締切を持つ removeClient/sweepTimers/applyJoin が毎回再計算して発行する。古い締切は
+          // state 上で既に無効化されている）。
           await this.ctx.storage.setAlarm(e.at);
           break;
         case "clearAlarm":

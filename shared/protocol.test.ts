@@ -123,6 +123,24 @@ test("rejects sync with non-finite playbackRate (overflow literal → Infinity)"
   expect(parseClientMessage(raw)).toBeNull();
 });
 
+test("rejects sync with out-of-range / non-integer playback fields", () => {
+  const base = {
+    v: 2,
+    type: "sync",
+    event: "play",
+    playing: true,
+    currentTime: 1,
+    playbackRate: 1,
+    seq: 1,
+  };
+  expect(parseClientMessage(JSON.stringify({ ...base, currentTime: -1 }))).toBeNull(); // 負の位置
+  expect(parseClientMessage(JSON.stringify({ ...base, playbackRate: 0 }))).toBeNull(); // 速度0
+  expect(parseClientMessage(JSON.stringify({ ...base, playbackRate: -1 }))).toBeNull(); // 負の速度
+  expect(parseClientMessage(JSON.stringify({ ...base, seq: 1.5 }))).toBeNull(); // 非整数 seq
+  // JSON.stringify(NaN) は "null" になり型チェックで弾かれる経路も確認。
+  expect(parseClientMessage(JSON.stringify({ ...base, currentTime: Number.NaN }))).toBeNull();
+});
+
 test("sync without contentKey is still valid (contentKey undefined)", () => {
   const raw = JSON.stringify({
     v: 2,

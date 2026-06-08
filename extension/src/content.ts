@@ -74,15 +74,18 @@ async function start(session: Session): Promise<void> {
     life.dispose();
     return;
   }
-  // autoplay ブロックでの再生失敗を1回だけ可視化する（drift loop が毎 tick 再試行するため
-  // 警告は抑制）。ユーザーが一度ページ内で操作すれば次の tick で再生が通る。
-  let warnedPlayBlocked = false;
+  // 再生失敗をエラー名ごとに1回だけ可視化する（drift loop が毎 tick 再試行するため同種は抑制。
+  // NotAllowedError をクリックで解消した後に別種の回復不能エラーが出ても無音化しないよう、
+  // 抑制は名前単位にする）。実際のエラーも添えてデバッグ可能にする。
+  const warnedPlayErrors = new Set<string>();
   const controller = new VideoController(video, {
-    onPlayRejected: () => {
-      if (warnedPlayBlocked) return;
-      warnedPlayBlocked = true;
+    onPlayRejected: (err) => {
+      const name = err instanceof Error ? err.name : "UnknownError";
+      if (warnedPlayErrors.has(name)) return;
+      warnedPlayErrors.add(name);
       console.warn(
-        "[watch-sync] 再生がブラウザにブロックされました。ページ内を一度クリックすると同期再生が始まります。",
+        `[watch-sync] 再生がブロックされました (${name})。ページ内を一度クリックすると同期再生が始まります。`,
+        err,
       );
     },
   });
@@ -194,6 +197,11 @@ async function start(session: Session): Promise<void> {
     if (titleDebounce) clearTimeout(titleDebounce);
     titleDebounce = setTimeout(sendTitleIfChanged, 1000);
   }
+  // scheduleTitleSend は maybeHandleNavigation から join 前にも呼ばれうるため、デバウンス
+  // タイマーのクリーンアップは startHostTitleSync 任せにせず無条件に登録する（取り残し防止）。
+  life.add(() => {
+    if (titleDebounce) clearTimeout(titleDebounce);
+  });
   function startHostTitleSync() {
     lastSentTitle = null; // (再)join のたびに現在値を確実に1回送る（サーバーが同値を弾く）
     sendTitleIfChanged();
@@ -210,9 +218,6 @@ async function start(session: Session): Promise<void> {
       characterData: true,
     });
     life.add(() => titleObs.disconnect());
-    life.add(() => {
-      if (titleDebounce) clearTimeout(titleDebounce);
-    });
   }
 
   orchestrator = new SyncOrchestrator({
