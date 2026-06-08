@@ -22,6 +22,12 @@
         box-sizing: border-box;
       }
 
+      /* hidden 属性を ID セレクタの display 指定より優先させる（#roomId / #leaveConfirm 等は
+         display:flex を持つため、これがないと hidden が効かず常時表示になる）。 */
+      [hidden] {
+        display: none !important;
+      }
+
       body {
         width: 288px;
         margin: 0;
