@@ -40,7 +40,9 @@ function waitForVideo(onCleanup?: (dispose: () => void) => void): Promise<HTMLVi
       }
     });
     mo.observe(document.documentElement, { childList: true, subtree: true });
-    // video 発見まで disconnect されないため、セッション破棄時に取り残さないよう解放処理を渡す
+    // video 発見まで disconnect されないため、セッション破棄時に取り残さないよう解放処理を渡す。
+    // 退出で disconnect された場合この Promise は未解決のまま放置されるが、呼び出し側は await 直後の
+    // life.aborted() 早期 return で抜けるため問題ない（gate.end() が副作用を解放済み）。
     onCleanup?.(() => mo.disconnect());
   });
 }
