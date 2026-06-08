@@ -182,6 +182,29 @@ test("host reconnect within hold reclaims slot", () => {
   expect(r.outcome).toBe("joined-host");
 });
 
+test("host reclaim clears the pending host-release alarm (no stale wake)", () => {
+  nowVal = 1000;
+  const st = emptyRoom("tok");
+  logic.applyJoin(st, "h", 1, "host", "tok");
+  logic.applyJoin(st, "p", 2, "participant");
+  logic.removeClient(st, "h"); // alarm を 61000 に武装
+  nowVal = 31000;
+  const r = logic.applyJoin(st, "h2", 3, "host", "tok"); // 復帰で締切が消える
+  // 復帰後はホスト締切も空締切も無いので、保留中 alarm をクリアして不要 wake を防ぐ。
+  expect(r.effects).toContainEqual({ kind: "clearAlarm" });
+});
+
+test("participant join while host disconnected re-affirms the host-release alarm", () => {
+  nowVal = 1000;
+  const st = emptyRoom("tok");
+  logic.applyJoin(st, "h", 1, "host", "tok");
+  logic.removeClient(st, "h"); // emptiedAt=1000 と hostDisconnectedAt=1000、最早 61000
+  nowVal = 5000;
+  const r = logic.applyJoin(st, "p", 2, "participant");
+  // 参加者が来ても hostDisconnectedAt は残る → ホスト締切 61000 を維持。
+  expect(r.effects).toContainEqual({ kind: "setAlarm", at: 61000 });
+});
+
 test("sweepTimers re-arms when host deadline fires but empty cleanup remains", () => {
   // host 切断 t=1000 → host 締切 61000
   nowVal = 1000;

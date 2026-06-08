@@ -74,7 +74,18 @@ async function start(session: Session): Promise<void> {
     life.dispose();
     return;
   }
-  const controller = new VideoController(video);
+  // autoplay ブロックでの再生失敗を1回だけ可視化する（drift loop が毎 tick 再試行するため
+  // 警告は抑制）。ユーザーが一度ページ内で操作すれば次の tick で再生が通る。
+  let warnedPlayBlocked = false;
+  const controller = new VideoController(video, {
+    onPlayRejected: () => {
+      if (warnedPlayBlocked) return;
+      warnedPlayBlocked = true;
+      console.warn(
+        "[watch-sync] 再生がブラウザにブロックされました。ページ内を一度クリックすると同期再生が始まります。",
+      );
+    },
+  });
 
   // ブラウザWebSocketをSocketLike（onmessageは文字列）に適合させるアダプタ。
   function makeBrowserSocket(url: string) {
@@ -102,6 +113,8 @@ async function start(session: Session): Promise<void> {
   const client = new WsClient(roomUrl(), {
     factory: () => makeBrowserSocket(roomUrl()),
     onMessage: (msg: ServerMessage) => handleServer(msg),
+    // RTT 測定は単調クロックで取る（Date.now() は NTP 補正で後退し負 RTT を生む）。
+    now: () => performance.now(),
   });
   life.add(() => client.close());
 
@@ -286,7 +299,13 @@ async function start(session: Session): Promise<void> {
         currentVideo = next;
       }
       // 新 contentKey＋新 currentTime で即時通知し、ズレ窓を最小化する（host のみ）。
-      if (session.role === "host") orchestrator.heartbeat();
+      // 加えて視聴中タイトルを再送出する。head の MutationObserver は body の作品名 h2/話数 h3 の
+      // 変化を拾わないため、遷移検知を唯一のトリガーにしてタイトル固着を防ぐ（デバウンスで
+      // 新ページのプレイヤーヘッダ描画を待つ）。
+      if (session.role === "host") {
+        orchestrator.heartbeat();
+        scheduleTitleSend();
+      }
     } finally {
       navigating = false;
     }

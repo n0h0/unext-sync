@@ -38,6 +38,16 @@ test("oneWayLatencyFromRtt halves RTT and converts ms->s", () => {
   expect(oneWayLatencyFromRtt(400)).toBeCloseTo(0.2);
 });
 
+test("oneWayLatencyFromRtt clamps negative RTT to 0 (clock went backwards)", () => {
+  // Date.now() が NTP 補正等で後退すると now()-sent が負になり、projection が過去へ巻き戻る。
+  expect(oneWayLatencyFromRtt(-100)).toBe(0);
+});
+
+test("oneWayLatencyFromRtt clamps non-finite RTT to 0", () => {
+  expect(oneWayLatencyFromRtt(Number.NaN)).toBe(0);
+  expect(oneWayLatencyFromRtt(Number.POSITIVE_INFINITY)).toBe(0);
+});
+
 test("nextBackoffMs grows exponentially and caps", () => {
   expect(nextBackoffMs(0)).toBe(500);
   expect(nextBackoffMs(1)).toBe(1000);

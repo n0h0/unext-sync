@@ -48,11 +48,6 @@ export class RoomDurableObject extends DurableObject {
     return undefined;
   }
 
-  private async maybeSetAlarm(at: number): Promise<void> {
-    const current = await this.ctx.storage.getAlarm();
-    if (current === null || at < current) await this.ctx.storage.setAlarm(at);
-  }
-
   private async applyEffects(effects: Effect[]): Promise<void> {
     for (const e of effects) {
       switch (e.kind) {
@@ -76,7 +71,12 @@ export class RoomDurableObject extends DurableObject {
           break;
         }
         case "setAlarm":
-          await this.maybeSetAlarm(e.at);
+          // reducer が毎回「現在状態の最早締切」を権威的に出すため上書きが正しい
+          // （古い締切は state 上で既に無効化されている）。
+          await this.ctx.storage.setAlarm(e.at);
+          break;
+        case "clearAlarm":
+          await this.ctx.storage.deleteAlarm();
           break;
         case "clearStorage":
           // persist 側で deleteAll するためここでは何もしない

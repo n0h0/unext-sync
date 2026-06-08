@@ -110,6 +110,19 @@ test("rejects sync with non-string contentKey", () => {
   expect(parseClientMessage(raw)).toBeNull();
 });
 
+test("rejects sync with non-finite currentTime (overflow literal → Infinity)", () => {
+  // JSON.parse('{"x":1e999}') は Infinity を返すため、オーバーフロー数値で非有限値が到達しうる。
+  const raw =
+    '{"v":2,"type":"sync","event":"play","playing":true,"currentTime":1e999,"playbackRate":1,"seq":1}';
+  expect(parseClientMessage(raw)).toBeNull();
+});
+
+test("rejects sync with non-finite playbackRate (overflow literal → Infinity)", () => {
+  const raw =
+    '{"v":2,"type":"sync","event":"play","playing":true,"currentTime":1,"playbackRate":1e999,"seq":1}';
+  expect(parseClientMessage(raw)).toBeNull();
+});
+
 test("sync without contentKey is still valid (contentKey undefined)", () => {
   const raw = JSON.stringify({
     v: 2,

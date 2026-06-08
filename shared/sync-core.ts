@@ -35,6 +35,8 @@ export function isStaleSeq(incomingSeq: number, lastAppliedSeq: number): boolean
 }
 
 export function oneWayLatencyFromRtt(rttMs: number): number {
+  // クロック後退（負 RTT）やネットワーク異常（非有限値）で projection が壊れないよう 0 にクランプ。
+  if (!Number.isFinite(rttMs) || rttMs <= 0) return 0;
   return rttMs / 2 / 1000;
 }
 
