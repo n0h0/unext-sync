@@ -22,7 +22,7 @@ const $ = (id: string): HTMLElement => {
 };
 // 表示と内部状態を一元化する。currentState は再押下ガード（isActiveSession）に使う。
 let currentState: ConnState = "idle";
-// 再生ページ上か。既定 true。再生ページ以外と判明したとき showUnavailable が false にする。
+// 再生ページ上か。既定 true。再生ページ以外と判明したとき showUnavailable() が false にセットする。
 // popup は開くたび作り直されるためモジュール初期化で true に戻る。
 let onPlayer = true;
 
