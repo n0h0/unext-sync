@@ -66,6 +66,59 @@ it("create → host join → participant join receives lastState; sync broadcast
   );
 });
 
+it("host_taken: 2人目の host 志望は participant として roster に乗る（spec フォールバック）", async () => {
+  const create = await SELF.fetch("https://x/create", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${SECRET}` },
+  });
+  const { roomId, hostToken } = await create.json<{ roomId: string; hostToken: string }>();
+
+  const host = await openWs(roomId);
+  host.ws.send(JSON.stringify({ v: 2, type: "join", roomId, role: "host", hostToken, name: "H" }));
+  await vi.waitFor(() =>
+    expect(host.messages.some((m) => m.type === "joined" && m.role === "host")).toBe(true),
+  );
+
+  // 誤トークンで host を主張 → host_taken を受けつつ participant として roster に乗る。
+  const second = await openWs(roomId);
+  second.ws.send(
+    JSON.stringify({ v: 2, type: "join", roomId, role: "host", hostToken: "WRONG", name: "X" }),
+  );
+  await vi.waitFor(() => expect(second.messages.some((m) => m.type === "host_taken")).toBe(true));
+
+  // ホストへ届く roster に X が participant（host:false）として現れる。
+  await vi.waitFor(() => {
+    const roster = [...host.messages].reverse().find((m) => m.type === "roster");
+    expect(roster).toBeTruthy();
+    expect(roster.participants.some((p: any) => p.name === "X" && p.host === false)).toBe(true);
+  });
+});
+
+it("roster: host が先頭、参加者は joinedAt 順で続く", async () => {
+  const create = await SELF.fetch("https://x/create", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${SECRET}` },
+  });
+  const { roomId, hostToken } = await create.json<{ roomId: string; hostToken: string }>();
+
+  const host = await openWs(roomId);
+  host.ws.send(JSON.stringify({ v: 2, type: "join", roomId, role: "host", hostToken, name: "H" }));
+  await vi.waitFor(() =>
+    expect(host.messages.some((m) => m.type === "joined" && m.role === "host")).toBe(true),
+  );
+  const p1 = await openWs(roomId);
+  p1.ws.send(JSON.stringify({ v: 2, type: "join", roomId, role: "participant", name: "A" }));
+  const p2 = await openWs(roomId);
+  p2.ws.send(JSON.stringify({ v: 2, type: "join", roomId, role: "participant", name: "B" }));
+
+  await vi.waitFor(() => {
+    const roster = [...host.messages].reverse().find((m) => m.type === "roster");
+    expect(roster?.participants.length).toBe(3);
+    expect(roster.participants[0].host).toBe(true);
+    expect(roster.participants.map((p: any) => p.name)).toEqual(["H", "A", "B"]);
+  });
+});
+
 it("join into unknown room returns no_room", async () => {
   const part = await openWs("doesnotexist");
   part.ws.send(JSON.stringify({ v: 2, type: "join", roomId: "doesnotexist", role: "participant" }));

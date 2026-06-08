@@ -56,6 +56,7 @@ export type Effect =
   | { kind: "broadcast"; exclude?: string; msg: ServerMessage }
   | { kind: "setAttachment"; clientId: string; attachment: Attachment }
   | { kind: "setAlarm"; at: number }
+  | { kind: "clearAlarm" }
   | { kind: "clearStorage" };
 
 export interface RoomDeps {
@@ -100,6 +101,14 @@ function earliestDeadline(p: PersistentState, hostTimeoutMs: number): number | n
     deadlines.push(p.hostDisconnectedAt + hostTimeoutMs);
   if (p.emptiedAt !== null) deadlines.push(p.emptiedAt + hostTimeoutMs);
   return deadlines.length ? Math.min(...deadlines) : null;
+}
+
+// alarm は常に「現在状態の最早締切」を反映する権威的ディレクティブとして発行する。
+// 締切が無くなったら clearAlarm を出し、ホスト復帰・空ルーム解消後の不要 wake を防ぐ
+// （DO ヒバーネーションの経済的生命線＝不要 wake を出さない）。
+function alarmEffect(p: PersistentState, hostTimeoutMs: number): Effect {
+  const at = earliestDeadline(p, hostTimeoutMs);
+  return at !== null ? { kind: "setAlarm", at } : { kind: "clearAlarm" };
 }
 
 export interface RoomLogic {
@@ -194,6 +203,9 @@ export function makeRoomLogic(deps: RoomDeps): RoomLogic {
           msg: { v: PROTOCOL_VERSION, type: "room_title", title: p.hostTitle },
         });
       }
+      // join で締切状態が変わりうる（ホスト復帰でホスト締切消滅／emptiedAt クリア）ため、
+      // 最早締切を権威的に再武装し、古い alarm を残さない。
+      effects.push(alarmEffect(p, deps.hostTimeoutMs));
       return { state, effects, outcome };
     },
     applySync(state, clientId, msg) {
@@ -240,8 +252,7 @@ export function makeRoomLogic(deps: RoomDeps): RoomLogic {
         kind: "broadcast",
         msg: { v: PROTOCOL_VERSION, type: "roster", participants: rosterOf(state) },
       });
-      const at = earliestDeadline(p, deps.hostTimeoutMs);
-      if (at !== null) effects.push({ kind: "setAlarm", at });
+      effects.push(alarmEffect(p, deps.hostTimeoutMs));
       return { state, effects };
     },
     sweepTimers(state, now) {
@@ -270,8 +281,7 @@ export function makeRoomLogic(deps: RoomDeps): RoomLogic {
           msg: { v: PROTOCOL_VERSION, type: "roster", participants: rosterOf(state) },
         });
       }
-      const at = earliestDeadline(p, deps.hostTimeoutMs);
-      if (at !== null) effects.push({ kind: "setAlarm", at });
+      effects.push(alarmEffect(p, deps.hostTimeoutMs));
       return { state, effects };
     },
   };

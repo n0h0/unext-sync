@@ -102,10 +102,12 @@ function isSyncEvent(x: unknown): x is SyncEvent {
 function isPlayback(o: Record<string, unknown>): o is Record<string, unknown> & PlaybackFields {
   return (
     typeof o.playing === "boolean" &&
-    typeof o.currentTime === "number" &&
-    o.currentTime >= 0 &&
-    typeof o.playbackRate === "number" &&
-    o.playbackRate > 0 &&
+    // Number.isFinite は NaN と ±Infinity を両方弾く（JSON のオーバーフロー数値リテラル
+    // 1e999 は JSON.parse で Infinity になり得るため、型と符号だけでは不十分）。
+    Number.isFinite(o.currentTime) &&
+    (o.currentTime as number) >= 0 &&
+    Number.isFinite(o.playbackRate) &&
+    (o.playbackRate as number) > 0 &&
     Number.isInteger(o.seq)
   );
 }

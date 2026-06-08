@@ -27,6 +27,7 @@ export class WsClient {
   private pingSentAt = new Map<number, number>();
   private latencySec = 0;
   private nextPingId = 1;
+  private warnedAbnormalRtt = false;
   private readonly now: () => number;
   private readonly schedule: (fn: () => void, ms: number) => void;
 
@@ -51,7 +52,16 @@ export class WsClient {
       if (msg.type === "pong") {
         const sent = this.pingSentAt.get(msg.id);
         if (sent !== undefined) {
-          this.latencySec = oneWayLatencyFromRtt(this.now() - sent);
+          const rttMs = this.now() - sent;
+          // 異常 RTT（負＝クロック後退 / 非有限＝測定破損）は sync-core 側で 0 にクランプされるが、
+          // 測定が壊れた兆候なので1回だけ可視化する（毎 pong のスパムは避ける）。
+          if ((!Number.isFinite(rttMs) || rttMs < 0) && !this.warnedAbnormalRtt) {
+            this.warnedAbnormalRtt = true;
+            console.warn(
+              `[watch-sync] 異常な RTT を検出 (${rttMs}ms)。同期精度が落ちる可能性があります。`,
+            );
+          }
+          this.latencySec = oneWayLatencyFromRtt(rttMs);
           this.pingSentAt.delete(msg.id);
         }
         return;

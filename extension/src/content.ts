@@ -74,7 +74,21 @@ async function start(session: Session): Promise<void> {
     life.dispose();
     return;
   }
-  const controller = new VideoController(video);
+  // 再生失敗をエラー名ごとに1回だけ可視化する（drift loop が毎 tick 再試行するため同種は抑制。
+  // NotAllowedError をクリックで解消した後に別種の回復不能エラーが出ても無音化しないよう、
+  // 抑制は名前単位にする）。実際のエラーも添えてデバッグ可能にする。
+  const warnedPlayErrors = new Set<string>();
+  const controller = new VideoController(video, {
+    onPlayRejected: (err) => {
+      const name = err instanceof Error ? err.name : "UnknownError";
+      if (warnedPlayErrors.has(name)) return;
+      warnedPlayErrors.add(name);
+      console.warn(
+        `[watch-sync] 再生がブロックされました (${name})。ページ内を一度クリックすると同期再生が始まります。`,
+        err,
+      );
+    },
+  });
 
   // ブラウザWebSocketをSocketLike（onmessageは文字列）に適合させるアダプタ。
   function makeBrowserSocket(url: string) {
@@ -102,6 +116,8 @@ async function start(session: Session): Promise<void> {
   const client = new WsClient(roomUrl(), {
     factory: () => makeBrowserSocket(roomUrl()),
     onMessage: (msg: ServerMessage) => handleServer(msg),
+    // RTT 測定は単調クロックで取る（Date.now() は NTP 補正で後退し負 RTT を生む）。
+    now: () => performance.now(),
   });
   life.add(() => client.close());
 
@@ -181,6 +197,11 @@ async function start(session: Session): Promise<void> {
     if (titleDebounce) clearTimeout(titleDebounce);
     titleDebounce = setTimeout(sendTitleIfChanged, 1000);
   }
+  // scheduleTitleSend は maybeHandleNavigation から join 前にも呼ばれうるため、デバウンス
+  // タイマーのクリーンアップは startHostTitleSync 任せにせず無条件に登録する（取り残し防止）。
+  life.add(() => {
+    if (titleDebounce) clearTimeout(titleDebounce);
+  });
   function startHostTitleSync() {
     lastSentTitle = null; // (再)join のたびに現在値を確実に1回送る（サーバーが同値を弾く）
     sendTitleIfChanged();
@@ -197,9 +218,6 @@ async function start(session: Session): Promise<void> {
       characterData: true,
     });
     life.add(() => titleObs.disconnect());
-    life.add(() => {
-      if (titleDebounce) clearTimeout(titleDebounce);
-    });
   }
 
   orchestrator = new SyncOrchestrator({
@@ -286,7 +304,13 @@ async function start(session: Session): Promise<void> {
         currentVideo = next;
       }
       // 新 contentKey＋新 currentTime で即時通知し、ズレ窓を最小化する（host のみ）。
-      if (session.role === "host") orchestrator.heartbeat();
+      // 加えて視聴中タイトルを再送出する。head の MutationObserver は body の作品名 h2/話数 h3 の
+      // 変化を拾わないため、遷移検知を唯一のトリガーにしてタイトル固着を防ぐ（デバウンスで
+      // 新ページのプレイヤーヘッダ描画を待つ）。
+      if (session.role === "host") {
+        orchestrator.heartbeat();
+        scheduleTitleSend();
+      }
     } finally {
       navigating = false;
     }
