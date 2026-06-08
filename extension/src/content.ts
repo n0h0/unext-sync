@@ -138,7 +138,13 @@ async function start(session: Session): Promise<void> {
         currentTitle = msg.title;
         chrome.runtime.sendMessage({ type: "room_title", title: msg.title }).catch(() => {});
         break;
-      // host_disconnected / host_resumed / no_room はpopupへ転送（status更新）
+      case "no_room":
+        // ルームが存在しない：再接続ループを回さず即セッションを解放する。status は no_room の
+        // まま残してユーザーに理由を伝えつつ、started=false で作成/参加をそのままやり直せる。
+        chrome.runtime.sendMessage({ type: "server_event", event: "no_room" }).catch(() => {});
+        resetSession("no_room");
+        break;
+      // host_disconnected / host_resumed はpopupへ転送（status更新）
       default: {
         const next = nextStateForServerEvent(msg.type);
         if (next) currentStatus = next;
@@ -315,6 +321,19 @@ async function start(session: Session): Promise<void> {
   }
 }
 
+// セッションを解放して指定ステータスへ戻す。gate.end() が in-flight な start() を abort＋登録済み
+// 副作用を一括解放し、started=false で作成/参加をそのままやり直せる状態にする。
+// 退出は "idle"、ルーム不在による自動解放は "no_room"（理由表示を残す）で呼ぶ。
+function resetSession(status: ConnState) {
+  gate.end();
+  started = false;
+  currentStatus = status;
+  currentRoomId = null;
+  currentRoster = [];
+  currentSelfId = null;
+  currentTitle = null;
+}
+
 // popupからの開始指示／状態問い合わせを受ける
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "start_session") {
@@ -324,13 +343,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return;
   }
   if (msg?.type === "leave_session") {
-    gate.end(); // in-flight な start() を abort＋登録済み副作用を一括解放
-    started = false;
-    currentStatus = "idle";
-    currentRoomId = null;
-    currentRoster = [];
-    currentSelfId = null;
-    currentTitle = null;
+    resetSession("idle");
     return;
   }
   if (msg?.type === "get_status") {

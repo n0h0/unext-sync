@@ -50,10 +50,13 @@ export function isActiveSession(s: ConnState): boolean {
   return s === "connecting" || s === "connected";
 }
 
-/** セッションが存在する間（idle 以外）だけ退出 UI を表示する。再接続中・切断中・ホスト切断・
- *  ルーム不在のいずれでも退出（＝停止）できるべきなので idle のみ false。 */
+/**
+ * 退出 UI を表示すべきか。セッションが生きている間（接続中・接続済み・切断・ホスト切断）は true。
+ * idle と no_room は false：idle は未接続、no_room は content script が自動でセッションを解放して
+ * 作成/参加をやり直せる状態に戻すため、ユーザーが押す「退出」は不要。
+ */
 export function leaveControlsVisible(s: ConnState): boolean {
-  return s !== "idle";
+  return s !== "idle" && s !== "no_room";
 }
 
 export function rosterHeader(entries: RosterEntry[]): string {

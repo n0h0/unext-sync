@@ -93,14 +93,15 @@ test("renderWatchingTitle shows label for a title and null otherwise", () => {
   expect(renderWatchingTitle("")).toBeNull();
 });
 
-test("leaveControlsVisible: idle 以外で true（セッションがある間だけ退出UIを出す）", () => {
+test("leaveControlsVisible: 生きたセッション中のみ true（idle/no_room は false）", () => {
   const cases: [ConnState, boolean][] = [
     ["idle", false],
     ["connecting", true],
     ["connected", true],
     ["disconnected", true],
     ["host_gone", true],
-    ["no_room", true],
+    // no_room は content script が自動でセッション解放するため退出UIは出さない
+    ["no_room", false],
   ];
   for (const [s, expected] of cases) {
     expect(leaveControlsVisible(s)).toBe(expected);
