@@ -22,6 +22,7 @@ export class WsClient {
   onOpen: (() => void) | null = null;
   onClose: (() => void) | null = null;
   private socket: SocketLike | null = null;
+  private stopped = false;
   private attempt = 0;
   private pingSentAt = new Map<number, number>();
   private latencySec = 0;
@@ -38,6 +39,7 @@ export class WsClient {
   }
 
   connect(): void {
+    if (this.stopped) return;
     const s = this.deps.factory();
     this.socket = s;
     s.onopen = () => {
@@ -58,10 +60,16 @@ export class WsClient {
     };
     s.onclose = () => {
       this.pingSentAt.clear();
+      if (this.stopped) return; // 意図的停止：再接続もせず onClose も呼ばない
       this.onClose?.();
       const delay = nextBackoffMs(this.attempt++);
       this.schedule(() => this.connect(), delay);
     };
+  }
+
+  close(): void {
+    this.stopped = true;
+    this.socket?.close();
   }
 
   send(msg: ClientMessage): void {

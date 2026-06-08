@@ -4,6 +4,8 @@ import {
   type ConnState,
   formatRosterLine,
   isActiveSession,
+  isValidRoomId,
+  leaveControlsVisible,
   nextStateForServerEvent,
   renderStatusLabel,
   renderWatchingTitle,
@@ -90,4 +92,30 @@ test("renderWatchingTitle shows label for a title and null otherwise", () => {
   expect(renderWatchingTitle("作品名 第3話")).toBe("🎬 視聴中: 作品名 第3話");
   expect(renderWatchingTitle(null)).toBeNull();
   expect(renderWatchingTitle("")).toBeNull();
+});
+
+test("leaveControlsVisible: 生きたセッション中のみ true（idle/no_room は false）", () => {
+  const cases: [ConnState, boolean][] = [
+    ["idle", false],
+    ["connecting", true],
+    ["connected", true],
+    ["disconnected", true],
+    ["host_gone", true],
+    // no_room は content script が自動でセッション解放するため退出UIは出さない
+    ["no_room", false],
+  ];
+  for (const [s, expected] of cases) {
+    expect(leaveControlsVisible(s)).toBe(expected);
+  }
+});
+
+test("isValidRoomId: 英数字1〜32文字のみ受理（不正文字での固着を防ぐ）", () => {
+  expect(isValidRoomId("95b5e33e")).toBe(true);
+  expect(isValidRoomId("ABCxyz09")).toBe(true);
+  expect(isValidRoomId("a".repeat(32))).toBe(true);
+  expect(isValidRoomId("")).toBe(false);
+  expect(isValidRoomId("ほげ")).toBe(false);
+  expect(isValidRoomId("ab cd")).toBe(false);
+  expect(isValidRoomId("room-123")).toBe(false);
+  expect(isValidRoomId("a".repeat(33))).toBe(false);
 });

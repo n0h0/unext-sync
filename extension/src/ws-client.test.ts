@@ -98,3 +98,27 @@ test("close schedules reconnect with growing backoff", () => {
   sockets[1].close(); // attempt 1 → 1000ms
   expect(delays).toEqual([500, 1000]);
 });
+
+test("close() stops reconnect and does not call onClose", () => {
+  const delays: number[] = [];
+  const sockets: FakeSocket[] = [];
+  const factory = () => {
+    const s = new FakeSocket();
+    sockets.push(s);
+    return s;
+  };
+  const onClose = vi.fn();
+  const client = new WsClient("wss://x", {
+    factory,
+    onMessage: () => {},
+    schedule: (_fn, ms) => {
+      delays.push(ms); /* 即時実行しない */
+    },
+  });
+  client.onClose = onClose;
+  client.connect();
+  sockets[0].open();
+  client.close(); // stopped を立て、FakeSocket.close() → onclose を同期発火させる
+  expect(delays).toEqual([]); // 再接続をスケジュールしない
+  expect(onClose).not.toHaveBeenCalled(); // 意図的停止では切断扱いにしない
+});

@@ -50,6 +50,25 @@ export function isActiveSession(s: ConnState): boolean {
   return s === "connecting" || s === "connected";
 }
 
+/**
+ * 退出 UI を表示すべきか。セッションが生きている間（接続中・接続済み・切断・ホスト切断）は true。
+ * idle と no_room は false：idle は未接続、no_room は content script が自動でセッションを解放して
+ * 作成/参加をやり直せる状態に戻すため、ユーザーが押す「退出」は不要。
+ */
+export function leaveControlsVisible(s: ConnState): boolean {
+  return s !== "idle" && s !== "no_room";
+}
+
+/**
+ * サーバーが WS ルーティングを受理するルームID形式（英数字1〜32文字、worker の
+ * `/^\/r\/([A-Za-z0-9]{1,32})$/` と一致）。これ以外（日本語・記号・空白など）で接続すると
+ * worker が 404 を返し WS が確立せず「接続中」で固着するため、参加前にここで弾く。
+ * 生成IDは8桁の小文字hexだが、サーバー受理範囲に合わせて広めに許可する。
+ */
+export function isValidRoomId(s: string): boolean {
+  return /^[A-Za-z0-9]{1,32}$/.test(s);
+}
+
 export function rosterHeader(entries: RosterEntry[]): string {
   return `参加者 (${entries.length})`;
 }
