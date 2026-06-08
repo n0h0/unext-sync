@@ -3,6 +3,7 @@ import {
   type ConnState,
   formatRosterLine,
   isActiveSession,
+  leaveControlsVisible,
   nextStateForServerEvent,
   renderStatusLabel,
   renderWatchingTitle,
@@ -23,6 +24,8 @@ const setStatus = (s: ConnState) => {
   // data-state は CSS のドット配色・脈動アニメを駆動する（popup.html 参照）。
   $("status").dataset.state = s;
   $("statusLabel").textContent = renderStatusLabel(s);
+  // セッションがある間（idle 以外）だけ退出 UI を出す。
+  ($("leaveBlock") as HTMLElement).hidden = !leaveControlsVisible(s);
 };
 
 /** ルームID行（#roomId）を表示し、コードを等幅で描画する。生IDを textContent で安全に出す。 */
@@ -100,6 +103,34 @@ $("copyRoom").addEventListener("click", async () => {
   setTimeout(() => {
     btn.textContent = prev;
   }, 1200);
+});
+
+function collapseLeaveConfirm() {
+  ($("leave") as HTMLElement).hidden = false;
+  ($("leaveConfirm") as HTMLElement).hidden = true;
+}
+
+/** 退出確定後に popup を未接続表示へ戻す。create/join フォームは常時表示なのでそのまま使える。 */
+function resetToIdle() {
+  setStatus("idle"); // leaveBlock もここで隠れる
+  ($("roomId") as HTMLElement).hidden = true;
+  $("roomCode").textContent = "";
+  $("rosterHeader").textContent = "";
+  $("roster").textContent = "";
+  $("watchingTitle").textContent = "";
+  collapseLeaveConfirm();
+}
+
+$("leave").addEventListener("click", () => {
+  ($("leave") as HTMLElement).hidden = true;
+  ($("leaveConfirm") as HTMLElement).hidden = false;
+});
+
+$("leaveCancel").addEventListener("click", collapseLeaveConfirm);
+
+$("leaveYes").addEventListener("click", async () => {
+  chrome.tabs.sendMessage(await activeTabId(), { type: "leave_session" });
+  resetToIdle();
 });
 
 // popup は開くたびに作り直されるため、開いた瞬間に現在状態を復元する。

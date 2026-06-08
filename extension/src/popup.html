@@ -290,6 +290,41 @@
         color: var(--text-dim);
         opacity: 0.7;
       }
+      /* ---- 退出 ---- */
+      #leaveBlock {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      #leave {
+        color: var(--text-dim);
+        background: transparent;
+        border: 1px solid var(--border);
+      }
+      #leave:hover {
+        color: var(--danger);
+        border-color: var(--danger);
+      }
+      #leaveConfirm {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .confirm-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      #leaveYes {
+        color: #fff;
+        background: var(--danger);
+        border: 1px solid var(--danger);
+      }
+      #leaveCancel {
+        color: var(--text);
+        background: transparent;
+        border: 1px solid var(--border);
+      }
     </style>
   </head>
   <body>
@@ -330,6 +365,14 @@
         <div id="watchingTitle"></div>
         <div id="rosterHeader"></div>
         <div id="roster"></div>
+        <div id="leaveBlock" hidden>
+          <button id="leave">退出</button>
+          <div id="leaveConfirm" hidden>
+            <span class="confirm-label">本当に退出しますか？</span>
+            <button id="leaveYes">はい、退出</button>
+            <button id="leaveCancel">キャンセル</button>
+          </div>
+        </div>
       </div>
     </div>
 
