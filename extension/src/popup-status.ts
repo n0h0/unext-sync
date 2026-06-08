@@ -59,6 +59,16 @@ export function leaveControlsVisible(s: ConnState): boolean {
   return s !== "idle" && s !== "no_room";
 }
 
+/**
+ * サーバーが WS ルーティングを受理するルームID形式（英数字1〜32文字、worker の
+ * `/^\/r\/([A-Za-z0-9]{1,32})$/` と一致）。これ以外（日本語・記号・空白など）で接続すると
+ * worker が 404 を返し WS が確立せず「接続中」で固着するため、参加前にここで弾く。
+ * 生成IDは8桁の小文字hexだが、サーバー受理範囲に合わせて広めに許可する。
+ */
+export function isValidRoomId(s: string): boolean {
+  return /^[A-Za-z0-9]{1,32}$/.test(s);
+}
+
 export function rosterHeader(entries: RosterEntry[]): string {
   return `参加者 (${entries.length})`;
 }

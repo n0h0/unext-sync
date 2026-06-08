@@ -3,6 +3,7 @@ import {
   type ConnState,
   formatRosterLine,
   isActiveSession,
+  isValidRoomId,
   leaveControlsVisible,
   nextStateForServerEvent,
   renderStatusLabel,
@@ -78,10 +79,26 @@ $("create").addEventListener("click", async () => {
   chrome.tabs.sendMessage(await activeTabId(), { type: "start_session", role: "host", name });
 });
 
+function setRoomError(msg: string | null) {
+  const el = $("roomError");
+  el.textContent = msg ?? "";
+  (el as HTMLElement).hidden = !msg;
+}
+
+// 入力を直したらエラーを消す
+($("room") as HTMLInputElement).addEventListener("input", () => setRoomError(null));
+
 $("join").addEventListener("click", async () => {
   if (isActiveSession(currentState)) return; // 既存セッション中は表示を巻き戻さない
   const roomId = ($("room") as HTMLInputElement).value.trim();
   if (!roomId) return;
+  // 不正な文字のルームIDは worker が 404 を返し WS が確立せず「接続中」で固着するため、
+  // 接続を試みず即エラー表示する。
+  if (!isValidRoomId(roomId)) {
+    setRoomError("ルームIDは英数字のみ・1〜32文字です");
+    return;
+  }
+  setRoomError(null);
   const name = nameValue();
   await chrome.storage.local.set({ name });
   setStatus("connecting");

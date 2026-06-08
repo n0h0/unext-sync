@@ -331,6 +331,13 @@
         background: transparent;
         border: 1px solid var(--border);
       }
+
+      /* ルームID 入力エラー */
+      #roomError {
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--danger);
+      }
     </style>
   </head>
   <body>
@@ -355,6 +362,7 @@
       <div class="field">
         <label for="room">ルームID（参加時）</label>
         <input id="room" placeholder="ルームID（参加時）" />
+        <div id="roomError" hidden></div>
       </div>
       <div class="actions">
         <button id="create">◆ ルーム作成（ホスト）</button>
