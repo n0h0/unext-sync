@@ -10,7 +10,7 @@ import { deriveContentKey } from "./content-key";
 import { type ConnState, nextStateForServerEvent } from "./popup-status";
 import { makeSessionGate } from "./session-gate";
 import { SyncOrchestrator } from "./sync-orchestrator";
-import { cleanTitle } from "./title";
+import { pickWatchTitle } from "./title";
 import { VideoController } from "./video-controller";
 import { WsClient } from "./ws-client";
 
@@ -153,12 +153,26 @@ async function start(session: Session): Promise<void> {
     }
   }
 
-  // ホストのみ：document.title を浄化して送る。空なら送らず直前値を維持。
+  // ホストのみ：視聴中タイトルを取得して送る。空なら送らず直前値を維持。
+  // 再生ページの document.title は「再生 | U-NEXT」で作品名を含まないため、
+  // 再生ページ限定でプレイヤーヘッダ DOM（作品名＋話数）を優先し、og:title をフォールバックにする。
   let lastSentTitle: string | null = null;
   let titleDebounce: ReturnType<typeof setTimeout> | undefined;
   let titleObserverInstalled = false;
+  function readTitleInputs() {
+    const onPlayer = location.pathname.includes("/play/");
+    const ogTitle =
+      document.querySelector('meta[property="og:title"]')?.getAttribute("content") ?? null;
+    const workTitle = onPlayer
+      ? document.querySelector('h2[class*="__Title"]')?.textContent?.trim() || null
+      : null;
+    const episodeTitle = onPlayer
+      ? document.querySelector('h3[class*="__SubTitle"]')?.textContent?.trim() || null
+      : null;
+    return { docTitle: document.title, ogTitle, workTitle, episodeTitle };
+  }
   function sendTitleIfChanged() {
-    const t = cleanTitle(document.title);
+    const t = pickWatchTitle(readTitleInputs());
     if (!t || t === lastSentTitle) return;
     lastSentTitle = t;
     client.send({ v: PROTOCOL_VERSION, type: "title", title: t });
@@ -170,6 +184,9 @@ async function start(session: Session): Promise<void> {
   function startHostTitleSync() {
     lastSentTitle = null; // (再)join のたびに現在値を確実に1回送る（サーバーが同値を弾く）
     sendTitleIfChanged();
+    // プレイヤーヘッダ DOM が join 直後はまだ描画されていないことがある。1秒後に再取得して
+    // 話数込みのタイトルを拾い直す（head の MutationObserver は body の h3 変化を拾わないため）。
+    scheduleTitleSend();
     if (titleObserverInstalled) return;
     titleObserverInstalled = true;
     // <title> の差し替え・テキスト変更の両方を拾うため head を subtree 監視する。
