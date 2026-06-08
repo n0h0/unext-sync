@@ -12,7 +12,7 @@ import {
   renderWatchingTitle,
   rosterHeader,
   setupFormLocked,
-  shouldDisableControls,
+  shouldShowUnavailable,
   unavailableNotice,
 } from "./popup-status";
 
@@ -112,17 +112,17 @@ test("leaveControlsVisible: 生きたセッション中のみ true（idle/no_roo
   }
 });
 
-test("shouldDisableControls: 再生ページ以外＆未接続のみ作成/参加を無効化", () => {
+test("shouldShowUnavailable: 再生ページ以外＆未接続のみ案内を表示", () => {
   // 再生ページ以外（onPlayer=false）かつセッション未確立 → 無効化
-  expect(shouldDisableControls(false, "idle")).toBe(true);
-  expect(shouldDisableControls(false, "disconnected")).toBe(true);
-  expect(shouldDisableControls(false, "host_gone")).toBe(true);
-  expect(shouldDisableControls(false, "no_room")).toBe(true);
+  expect(shouldShowUnavailable(false, "idle")).toBe(true);
+  expect(shouldShowUnavailable(false, "disconnected")).toBe(true);
+  expect(shouldShowUnavailable(false, "host_gone")).toBe(true);
+  expect(shouldShowUnavailable(false, "no_room")).toBe(true);
   // 再生ページなら有効
-  expect(shouldDisableControls(true, "idle")).toBe(false);
+  expect(shouldShowUnavailable(true, "idle")).toBe(false);
   // 活きたセッション中は再生ページ判定に関わらず表示を維持（無効化しない）
-  expect(shouldDisableControls(false, "connecting")).toBe(false);
-  expect(shouldDisableControls(false, "connected")).toBe(false);
+  expect(shouldShowUnavailable(false, "connecting")).toBe(false);
+  expect(shouldShowUnavailable(false, "connected")).toBe(false);
 });
 
 test("isValidRoomId: 英数字1〜32文字のみ受理（不正文字での固着を防ぐ）", () => {

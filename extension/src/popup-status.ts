@@ -90,7 +90,7 @@ export function isValidRoomId(s: string): boolean {
  * （/play/{SID}/{ED}）でしか意味を持たないため。既存セッション中（接続中/接続済み）は案内を出さない。
  * ボタン自体の disabled 判定は actionButtonsDisabled が「単一の真実源」として担う（このフラグは案内の表示ゲート）。
  */
-export function shouldDisableControls(onPlayer: boolean, status: ConnState): boolean {
+export function shouldShowUnavailable(onPlayer: boolean, status: ConnState): boolean {
   return !onPlayer && !isActiveSession(status);
 }
 
