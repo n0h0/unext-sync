@@ -1,5 +1,6 @@
 import type { RosterEntry } from "../../shared/protocol";
 import {
+  actionButtonsDisabled,
   type ConnState,
   formatRosterLine,
   isActiveSession,
@@ -9,6 +10,7 @@ import {
   renderStatusLabel,
   renderWatchingTitle,
   rosterHeader,
+  setupFormLocked,
   shouldDisableControls,
   unavailableNotice,
 } from "./popup-status";
@@ -20,6 +22,20 @@ const $ = (id: string): HTMLElement => {
 };
 // 表示と内部状態を一元化する。currentState は再押下ガード（isActiveSession）に使う。
 let currentState: ConnState = "idle";
+// 再生ページ上か。既定 true。再生ページ以外と判明したとき showUnavailable が false にする。
+// popup は開くたび作り直されるためモジュール初期化で true に戻る。
+let onPlayer = true;
+
+/** name/room/create/join の disabled を currentState と onPlayer から導く唯一の書き手。 */
+function applySetupControls() {
+  const formLocked = setupFormLocked(currentState);
+  ($("name") as HTMLInputElement).disabled = formLocked;
+  ($("room") as HTMLInputElement).disabled = formLocked;
+  const btnDisabled = actionButtonsDisabled(onPlayer, currentState);
+  ($("create") as HTMLButtonElement).disabled = btnDisabled;
+  ($("join") as HTMLButtonElement).disabled = btnDisabled;
+}
+
 const setStatus = (s: ConnState) => {
   currentState = s;
   // #status はドット＋ラベルを内包するため textContent では潰さず、ラベルだけ差し替える。
@@ -28,6 +44,8 @@ const setStatus = (s: ConnState) => {
   $("statusLabel").textContent = renderStatusLabel(s);
   // セッションがある間（idle 以外）だけ退出 UI を出す。
   ($("leaveBlock") as HTMLElement).hidden = !leaveControlsVisible(s);
+  // 状態が変わるたびフォーム/ボタンの有効・無効を再計算する。
+  applySetupControls();
 };
 
 /** ルームID行（#roomId）を表示し、コードを等幅で描画する。生IDを textContent で安全に出す。 */
@@ -57,8 +75,9 @@ function showUnavailable() {
   const guard = $("guard");
   guard.textContent = unavailableNotice();
   guard.hidden = false;
-  ($("create") as HTMLButtonElement).disabled = true;
-  ($("join") as HTMLButtonElement).disabled = true;
+  // 再生ページ以外と確定。disabled の反映は単一書き手 applySetupControls に委ねる。
+  onPlayer = false;
+  applySetupControls();
 }
 
 async function activeTabId(): Promise<number> {

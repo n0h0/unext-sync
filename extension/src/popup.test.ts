@@ -158,7 +158,7 @@ test("actionButtonsDisabled: セッション中 or 再生ページ以外なら�
   expect(actionButtonsDisabled(true, "connected")).toBe(true);
   expect(actionButtonsDisabled(true, "disconnected")).toBe(true);
   expect(actionButtonsDisabled(true, "host_gone")).toBe(true);
-  // onPlayer=false: 全状態で true
+  // onPlayer=false: 代表値で true を確認（全状態 true は setupFormLocked テスト側で担保）
   expect(actionButtonsDisabled(false, "idle")).toBe(true);
   expect(actionButtonsDisabled(false, "no_room")).toBe(true);
   expect(actionButtonsDisabled(false, "connected")).toBe(true);

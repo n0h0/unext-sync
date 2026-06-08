@@ -85,9 +85,10 @@ export function isValidRoomId(s: string): boolean {
 }
 
 /**
- * 作成/参加を無効化すべきか。再生ページ以外（onPlayer=false）かつセッション未確立のとき true。
- * 再生状態の同期は再生ページ（/play/{SID}/{ED}）でしか意味を持たないため、再生ページ以外では
- * ルーム作成・参加を禁止する。既存セッション中（接続中/接続済み）は表示を巻き戻さないよう false。
+ * 再生ページ以外の「再生ページで開いてください」案内（showUnavailable）を出すべきか。
+ * 再生ページ以外（onPlayer=false）かつセッション未確立のとき true。再生状態の同期は再生ページ
+ * （/play/{SID}/{ED}）でしか意味を持たないため。既存セッション中（接続中/接続済み）は案内を出さない。
+ * ボタン自体の disabled 判定は actionButtonsDisabled が「単一の真実源」として担う（このフラグは案内の表示ゲート）。
  */
 export function shouldDisableControls(onPlayer: boolean, status: ConnState): boolean {
   return !onPlayer && !isActiveSession(status);
