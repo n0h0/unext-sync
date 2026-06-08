@@ -370,6 +370,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       roster: currentRoster,
       selfId: currentSelfId,
       title: currentTitle,
+      // 再生ページ（/play/{SID}/{ED}）でのみルーム作成/参加を許可するため popup に通知する。
+      onPlayer: deriveContentKey(location.pathname) !== undefined,
     });
   }
 });

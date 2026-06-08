@@ -69,6 +69,15 @@ export function isValidRoomId(s: string): boolean {
   return /^[A-Za-z0-9]{1,32}$/.test(s);
 }
 
+/**
+ * 作成/参加を無効化すべきか。再生ページ以外（onPlayer=false）かつセッション未確立のとき true。
+ * 再生状態の同期は再生ページ（/play/{SID}/{ED}）でしか意味を持たないため、再生ページ以外では
+ * ルーム作成・参加を禁止する。既存セッション中（接続中/接続済み）は表示を巻き戻さないよう false。
+ */
+export function shouldDisableControls(onPlayer: boolean, status: ConnState): boolean {
+  return !onPlayer && !isActiveSession(status);
+}
+
 export function rosterHeader(entries: RosterEntry[]): string {
   return `参加者 (${entries.length})`;
 }

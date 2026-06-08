@@ -9,6 +9,7 @@ import {
   renderStatusLabel,
   renderWatchingTitle,
   rosterHeader,
+  shouldDisableControls,
   unavailableNotice,
 } from "./popup-status";
 
@@ -160,6 +161,8 @@ $("leaveYes").addEventListener("click", async () => {
     if (resp?.status) setStatus(resp.status);
     if (resp?.roster) renderRoster(resp.roster, resp.selfId ?? null);
     if (resp?.title) showWatchingTitle(resp.title);
+    // 再生ページ以外では作成/参加を無効化（活きたセッションがあれば維持）
+    if (shouldDisableControls(!!resp?.onPlayer, resp?.status ?? "idle")) showUnavailable();
   } catch {
     // content script 未注入（U-NEXTページでない等）→ 案内を出し作成／参加を無効化する
     showUnavailable();
