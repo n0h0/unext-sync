@@ -5,6 +5,7 @@ import {
   type SyncEvent,
 } from "../../shared/protocol";
 import { DEFAULTS } from "../../shared/sync-core";
+import { makeBrowserSocket } from "./browser-socket";
 import { CONNECT_SECRET, httpBaseFrom, SERVER_URL } from "./config";
 import { deriveContentKey } from "./content-key";
 import { makeHostTitleSync, readTitleInputsFromDom } from "./host-title-sync";
@@ -104,31 +105,10 @@ async function start(session: Session): Promise<void> {
     },
   });
 
-  // ブラウザWebSocketをSocketLike（onmessageは文字列）に適合させるアダプタ。
-  function makeBrowserSocket(url: string) {
-    const raw = new WebSocket(url, [CONNECT_SECRET]);
-    return {
-      get readyState() {
-        return raw.readyState;
-      },
-      send: (d: string) => raw.send(d),
-      close: () => raw.close(),
-      set onopen(fn: (() => void) | null) {
-        raw.onopen = fn ? () => fn() : null;
-      },
-      set onclose(fn: (() => void) | null) {
-        raw.onclose = fn ? () => fn() : null;
-      },
-      set onmessage(fn: ((data: string) => void) | null) {
-        raw.onmessage = fn ? (ev: MessageEvent) => fn(String(ev.data)) : null;
-      },
-    } as unknown as import("./ws-client").SocketLike;
-  }
-
   let orchestrator: SyncOrchestrator;
   const roomUrl = () => `${SERVER_URL}/r/${session.roomId}`;
   const client = new WsClient({
-    factory: () => makeBrowserSocket(roomUrl()),
+    factory: () => makeBrowserSocket(roomUrl(), CONNECT_SECRET),
     onMessage: (msg: ServerMessage) => handleServer(msg),
     // RTT 測定は単調クロックで取る（Date.now() は NTP 補正で後退し負 RTT を生む）。
     now: () => performance.now(),
