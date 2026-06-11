@@ -10,7 +10,6 @@ import {
 let nowVal = 1000;
 const deps = {
   now: () => nowVal,
-  genToken: () => "tok",
   genGuestSuffix: () => "abcd",
   hostTimeoutMs: 60000,
 };

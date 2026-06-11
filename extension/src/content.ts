@@ -127,7 +127,7 @@ async function start(session: Session): Promise<void> {
 
   let orchestrator: SyncOrchestrator;
   const roomUrl = () => `${SERVER_URL}/r/${session.roomId}`;
-  const client = new WsClient(roomUrl(), {
+  const client = new WsClient({
     factory: () => makeBrowserSocket(roomUrl()),
     onMessage: (msg: ServerMessage) => handleServer(msg),
     // RTT 測定は単調クロックで取る（Date.now() は NTP 補正で後退し負 RTT を生む）。
