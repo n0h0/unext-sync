@@ -1,5 +1,13 @@
 import { expect, test } from "vitest";
+import { SERVER_MESSAGE_TYPES } from "../../shared/protocol";
 import { parseServerMessageLoose } from "./parse-server";
+
+test("accepts every ServerMessage type declared in protocol (single source of truth)", () => {
+  for (const type of SERVER_MESSAGE_TYPES) {
+    const msg = parseServerMessageLoose(JSON.stringify({ v: 2, type }));
+    expect(msg?.type, `type "${type}" must not be dropped`).toBe(type);
+  }
+});
 
 test("parses a roster message (regression: roster must not be dropped)", () => {
   const raw = JSON.stringify({
