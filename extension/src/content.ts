@@ -5,12 +5,13 @@ import {
   type SyncEvent,
 } from "../../shared/protocol";
 import { DEFAULTS } from "../../shared/sync-core";
+import { makeBrowserSocket } from "./browser-socket";
 import { CONNECT_SECRET, httpBaseFrom, SERVER_URL } from "./config";
 import { deriveContentKey } from "./content-key";
+import { makeHostTitleSync, readTitleInputsFromDom } from "./host-title-sync";
 import { type ConnState, nextStateForServerEvent } from "./popup-status";
 import { makeSessionGate } from "./session-gate";
 import { SyncOrchestrator } from "./sync-orchestrator";
-import { pickWatchTitle } from "./title";
 import { VideoController } from "./video-controller";
 import { WsClient } from "./ws-client";
 
@@ -64,6 +65,20 @@ let currentTitle: string | null = null;
 
 const gate = makeSessionGate();
 
+// popup への通知。popup が閉じていて受け手がいないときは reject するため握りつぶす。
+function notifyPopup(msg: Record<string, unknown>): void {
+  chrome.runtime.sendMessage(msg).catch(() => {});
+}
+
+// 接続ステータスの写像（nextStateForServerEvent）は content script だけが適用し、popup へは
+// 算出済みステータスを push する。生イベントを送って popup 側で再写像する二重の状態機械を持たない。
+function applyServerEventStatus(event: string): void {
+  const next = nextStateForServerEvent(event);
+  if (!next) return;
+  currentStatus = next;
+  notifyPopup({ type: "status", status: next });
+}
+
 async function start(session: Session): Promise<void> {
   if (started) return;
   started = true;
@@ -90,31 +105,10 @@ async function start(session: Session): Promise<void> {
     },
   });
 
-  // ブラウザWebSocketをSocketLike（onmessageは文字列）に適合させるアダプタ。
-  function makeBrowserSocket(url: string) {
-    const raw = new WebSocket(url, [CONNECT_SECRET]);
-    return {
-      get readyState() {
-        return raw.readyState;
-      },
-      send: (d: string) => raw.send(d),
-      close: () => raw.close(),
-      set onopen(fn: (() => void) | null) {
-        raw.onopen = fn ? () => fn() : null;
-      },
-      set onclose(fn: (() => void) | null) {
-        raw.onclose = fn ? () => fn() : null;
-      },
-      set onmessage(fn: ((data: string) => void) | null) {
-        raw.onmessage = fn ? (ev: MessageEvent) => fn(String(ev.data)) : null;
-      },
-    } as unknown as import("./ws-client").SocketLike;
-  }
-
   let orchestrator: SyncOrchestrator;
   const roomUrl = () => `${SERVER_URL}/r/${session.roomId}`;
-  const client = new WsClient(roomUrl(), {
-    factory: () => makeBrowserSocket(roomUrl()),
+  const client = new WsClient({
+    factory: () => makeBrowserSocket(roomUrl(), CONNECT_SECRET),
     onMessage: (msg: ServerMessage) => handleServer(msg),
     // RTT 測定は単調クロックで取る（Date.now() は NTP 補正で後退し負 RTT を生む）。
     now: () => performance.now(),
@@ -129,96 +123,50 @@ async function start(session: Session): Promise<void> {
       case "state":
         void orchestrator.onServerState(msg);
         break;
-      case "joined": {
+      case "joined":
         currentSelfId = msg.clientId;
-        const next = nextStateForServerEvent("joined");
-        if (next) currentStatus = next;
-        chrome.runtime.sendMessage({ type: "server_event", event: "joined" }).catch(() => {});
-        if (msg.role === "host") startHostTitleSync();
+        applyServerEventStatus("joined");
+        if (msg.role === "host") titleSync.start();
         break;
-      }
-      case "host_taken": {
+      case "host_taken":
         currentSelfId = msg.clientId;
-        const next = nextStateForServerEvent("host_taken");
-        if (next) currentStatus = next;
-        chrome.runtime.sendMessage({ type: "server_event", event: "host_taken" }).catch(() => {});
+        applyServerEventStatus("host_taken");
         break;
-      }
       case "roster":
         currentRoster = msg.participants;
-        chrome.runtime
-          .sendMessage({ type: "roster", participants: msg.participants, selfId: currentSelfId })
-          .catch(() => {});
+        notifyPopup({ type: "roster", participants: msg.participants, selfId: currentSelfId });
         break;
       case "room_title":
         currentTitle = msg.title;
-        chrome.runtime.sendMessage({ type: "room_title", title: msg.title }).catch(() => {});
+        notifyPopup({ type: "room_title", title: msg.title });
         break;
       case "no_room":
         // ルームが存在しない：再接続ループを回さず即セッションを解放する。status は no_room の
         // まま残してユーザーに理由を伝えつつ、started=false で作成/参加をそのままやり直せる。
-        chrome.runtime.sendMessage({ type: "server_event", event: "no_room" }).catch(() => {});
         resetSession("no_room");
+        notifyPopup({ type: "status", status: "no_room" });
         break;
-      // host_disconnected / host_resumed はpopupへ転送（status更新）
-      default: {
-        const next = nextStateForServerEvent(msg.type);
-        if (next) currentStatus = next;
-        chrome.runtime.sendMessage({ type: "server_event", event: msg.type }).catch(() => {});
-      }
+      // host_disconnected / host_resumed は status へ写像して popup に push
+      default:
+        applyServerEventStatus(msg.type);
     }
   }
 
-  // ホストのみ：視聴中タイトルを取得して送る。空なら送らず直前値を維持。
-  // 再生ページの document.title は「再生 | U-NEXT」で作品名を含まないため、
-  // 再生ページ限定でプレイヤーヘッダ DOM（作品名＋話数）を優先し、og:title をフォールバックにする。
-  let lastSentTitle: string | null = null;
-  let titleDebounce: ReturnType<typeof setTimeout> | undefined;
-  let titleObserverInstalled = false;
-  function readTitleInputs() {
-    const onPlayer = location.pathname.includes("/play/");
-    const ogTitle =
-      document.querySelector('meta[property="og:title"]')?.getAttribute("content") ?? null;
-    const workTitle = onPlayer
-      ? document.querySelector('h2[class*="__Title"]')?.textContent?.trim() || null
-      : null;
-    const episodeTitle = onPlayer
-      ? document.querySelector('h3[class*="__SubTitle"]')?.textContent?.trim() || null
-      : null;
-    return { docTitle: document.title, ogTitle, workTitle, episodeTitle };
-  }
-  function sendTitleIfChanged() {
-    const t = pickWatchTitle(readTitleInputs());
-    if (!t || t === lastSentTitle) return;
-    lastSentTitle = t;
-    client.send({ v: PROTOCOL_VERSION, type: "title", title: t });
-  }
-  function scheduleTitleSend() {
-    if (titleDebounce) clearTimeout(titleDebounce);
-    titleDebounce = setTimeout(sendTitleIfChanged, 1000);
-  }
-  // scheduleTitleSend は maybeHandleNavigation から join 前にも呼ばれうるため、デバウンス
-  // タイマーのクリーンアップは startHostTitleSync 任せにせず無条件に登録する（取り残し防止）。
-  life.add(() => {
-    if (titleDebounce) clearTimeout(titleDebounce);
+  // ホストのみ：視聴中タイトルの取得・デバウンス・送信は host-title-sync.ts に集約。
+  // ここは DOM・WS・MutationObserver の配線だけを渡す。
+  const titleSync = makeHostTitleSync({
+    readInputs: () => readTitleInputsFromDom(document, location.pathname),
+    sendTitle: (title) => client.send({ v: PROTOCOL_VERSION, type: "title", title }),
+    observeHead: (onChange) => {
+      // <title> の差し替え・テキスト変更の両方を拾うため head を subtree 監視する。
+      const obs = new MutationObserver(onChange);
+      obs.observe(document.head, { subtree: true, childList: true, characterData: true });
+      return () => obs.disconnect();
+    },
   });
-  function startHostTitleSync() {
-    lastSentTitle = null; // (再)join のたびに現在値を確実に1回送る（サーバーが同値を弾く）
-    sendTitleIfChanged();
-    // プレイヤーヘッダ DOM が join 直後はまだ描画されていないことがある。1秒後に再取得して
-    // 話数込みのタイトルを拾い直す（head の MutationObserver は body の h3 変化を拾わないため）。
-    scheduleTitleSend();
-    if (titleObserverInstalled) return;
-    titleObserverInstalled = true;
-    // <title> の差し替え・テキスト変更の両方を拾うため head を subtree 監視する。
-    const titleObs = new MutationObserver(scheduleTitleSend);
-    titleObs.observe(document.head, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-    });
-    life.add(() => titleObs.disconnect());
-  }
+  // schedule() は maybeHandleNavigation から join 前にも呼ばれうるため、クリーンアップは
+  // start() 任せにせず無条件に登録する（取り残し防止）。
+  life.add(() => titleSync.dispose());
 
   orchestrator = new SyncOrchestrator({
     role: session.role,
@@ -254,13 +202,14 @@ async function start(session: Session): Promise<void> {
       session.roomId = data.roomId;
       session.hostToken = data.hostToken;
       currentRoomId = data.roomId;
-      chrome.runtime.sendMessage({ type: "room_created", roomId: data.roomId }).catch(() => {});
+      notifyPopup({ type: "room_created", roomId: data.roomId });
     } catch {
       life.dispose();
+      // 旧実装は popup へ host_disconnected イベントを送り「ホスト切断」表示になっていたが、
+      // 内部状態は disconnected で、popup を開き直すと「切断」になる不整合があった。
+      // 算出済みステータスを push する方式で「切断」に統一する。
       currentStatus = "disconnected";
-      chrome.runtime
-        .sendMessage({ type: "server_event", event: "host_disconnected" })
-        .catch(() => {});
+      notifyPopup({ type: "status", status: "disconnected" });
       started = false; // 作成失敗時はセッションを開始済みにせず、popup から再試行できるようにする
       return;
     }
@@ -309,7 +258,7 @@ async function start(session: Session): Promise<void> {
       // 新ページのプレイヤーヘッダ描画を待つ）。
       if (session.role === "host") {
         orchestrator.heartbeat();
-        scheduleTitleSend();
+        titleSync.schedule();
       }
     } finally {
       navigating = false;

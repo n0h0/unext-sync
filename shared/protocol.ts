@@ -93,6 +93,23 @@ export type ServerMessage =
   | PongMessage
   | NoRoomMessage;
 
+// ServerMessage の type 判別子の単一の真実源。Record<ServerMessage["type"], true> なので、
+// ユニオンへ型を追加してここに足し忘れる（または余分なキーを書く）と tsc が落ちる。
+// クライアント側 allowlist（extension/src/parse-server.ts）はこの配列から導出され、
+// 「新メッセージ型を allowlist に足し忘れて黙って破棄される」事故を構造的に防ぐ。
+const SERVER_MESSAGE_TYPE_MAP: Record<ServerMessage["type"], true> = {
+  joined: true,
+  host_taken: true,
+  state: true,
+  host_disconnected: true,
+  host_resumed: true,
+  roster: true,
+  room_title: true,
+  pong: true,
+  no_room: true,
+};
+export const SERVER_MESSAGE_TYPES = Object.keys(SERVER_MESSAGE_TYPE_MAP) as ServerMessage["type"][];
+
 const SYNC_EVENTS: SyncEvent[] = ["play", "pause", "seek", "ratechange", "heartbeat"];
 
 function isSyncEvent(x: unknown): x is SyncEvent {

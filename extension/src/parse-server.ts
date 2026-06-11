@@ -1,16 +1,7 @@
-import { PROTOCOL_VERSION, type ServerMessage } from "../../shared/protocol";
+import { PROTOCOL_VERSION, SERVER_MESSAGE_TYPES, type ServerMessage } from "../../shared/protocol";
 
-const TYPES = new Set([
-  "joined",
-  "state",
-  "roster",
-  "room_title",
-  "host_taken",
-  "host_disconnected",
-  "host_resumed",
-  "pong",
-  "no_room",
-]);
+// allowlist は protocol.ts の SERVER_MESSAGE_TYPES（単一の真実源）から導出する。
+const TYPES: ReadonlySet<string> = new Set(SERVER_MESSAGE_TYPES);
 
 export function parseServerMessageLoose(raw: string): ServerMessage | null {
   let parsed: unknown;

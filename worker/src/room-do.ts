@@ -18,7 +18,6 @@ export class RoomDurableObject extends DurableObject {
   private logic() {
     return makeRoomLogic({
       now: () => Date.now(),
-      genToken: () => crypto.randomUUID(),
       genGuestSuffix: () => crypto.randomUUID().slice(0, 4),
       hostTimeoutMs: HOST_TIMEOUT_MS,
     });

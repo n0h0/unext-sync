@@ -61,7 +61,6 @@ export type Effect =
 
 export interface RoomDeps {
   now: () => number;
-  genToken: () => string;
   genGuestSuffix: () => string;
   hostTimeoutMs: number;
 }

@@ -31,7 +31,7 @@ function setup() {
     return s;
   };
   const onMessage = vi.fn();
-  const client = new WsClient("wss://x", { factory, onMessage });
+  const client = new WsClient({ factory, onMessage });
   return { sockets, client, onMessage };
 }
 
@@ -71,7 +71,7 @@ function setupWithClock(now: () => number) {
     sockets.push(s);
     return s;
   };
-  const client = new WsClient("wss://x", { factory, onMessage: () => {}, now });
+  const client = new WsClient({ factory, onMessage: () => {}, now });
   return { sockets, client };
 }
 
@@ -83,7 +83,7 @@ test("close schedules reconnect with growing backoff", () => {
     sockets.push(s);
     return s;
   };
-  const client = new WsClient("wss://x", {
+  const client = new WsClient({
     factory,
     onMessage: () => {},
     schedule: (_fn, ms) => {
@@ -108,7 +108,7 @@ test("close() stops reconnect and does not call onClose", () => {
     return s;
   };
   const onClose = vi.fn();
-  const client = new WsClient("wss://x", {
+  const client = new WsClient({
     factory,
     onMessage: () => {},
     schedule: (_fn, ms) => {
