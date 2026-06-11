@@ -26,8 +26,9 @@ export function renderStatusLabel(s: ConnState): string {
 }
 
 /**
- * サーバーイベント（content script が server_event として転送する ServerMessage の type）を
- * 次のステータスへ写像する。該当しないイベント（pong 等）は null＝表示変更なし。
+ * サーバーイベント（ServerMessage の type）を次のステータスへ写像する。呼び出し元は
+ * content script（source of truth）のみで、算出済みステータスを { type:"status" } として
+ * popup へ push する（popup 側で再写像しない）。該当しないイベント（pong 等）は null＝変更なし。
  * `joined` を含めることで、参加者が参加成功しても「接続中」のまま固まる表示ギャップを防ぐ。
  */
 export function nextStateForServerEvent(event: string): ConnState | null {

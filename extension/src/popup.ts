@@ -6,7 +6,6 @@ import {
   isActiveSession,
   isValidRoomId,
   leaveControlsVisible,
-  nextStateForServerEvent,
   renderStatusLabel,
   renderWatchingTitle,
   rosterHeader,
@@ -202,7 +201,6 @@ chrome.runtime.onMessage.addListener((msg) => {
     showWatchingTitle(msg.title);
     return;
   }
-  if (msg?.type !== "server_event") return;
-  const next = nextStateForServerEvent(msg.event);
-  if (next) setStatus(next);
+  // 接続ステータスは content script（source of truth）が算出済みの値を push してくる。
+  if (msg?.type === "status") setStatus(msg.status);
 });

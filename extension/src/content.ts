@@ -64,6 +64,20 @@ let currentTitle: string | null = null;
 
 const gate = makeSessionGate();
 
+// popup への通知。popup が閉じていて受け手がいないときは reject するため握りつぶす。
+function notifyPopup(msg: Record<string, unknown>): void {
+  chrome.runtime.sendMessage(msg).catch(() => {});
+}
+
+// 接続ステータスの写像（nextStateForServerEvent）は content script だけが適用し、popup へは
+// 算出済みステータスを push する。生イベントを送って popup 側で再写像する二重の状態機械を持たない。
+function applyServerEventStatus(event: string): void {
+  const next = nextStateForServerEvent(event);
+  if (!next) return;
+  currentStatus = next;
+  notifyPopup({ type: "status", status: next });
+}
+
 async function start(session: Session): Promise<void> {
   if (started) return;
   started = true;
@@ -129,43 +143,32 @@ async function start(session: Session): Promise<void> {
       case "state":
         void orchestrator.onServerState(msg);
         break;
-      case "joined": {
+      case "joined":
         currentSelfId = msg.clientId;
-        const next = nextStateForServerEvent("joined");
-        if (next) currentStatus = next;
-        chrome.runtime.sendMessage({ type: "server_event", event: "joined" }).catch(() => {});
+        applyServerEventStatus("joined");
         if (msg.role === "host") titleSync.start();
         break;
-      }
-      case "host_taken": {
+      case "host_taken":
         currentSelfId = msg.clientId;
-        const next = nextStateForServerEvent("host_taken");
-        if (next) currentStatus = next;
-        chrome.runtime.sendMessage({ type: "server_event", event: "host_taken" }).catch(() => {});
+        applyServerEventStatus("host_taken");
         break;
-      }
       case "roster":
         currentRoster = msg.participants;
-        chrome.runtime
-          .sendMessage({ type: "roster", participants: msg.participants, selfId: currentSelfId })
-          .catch(() => {});
+        notifyPopup({ type: "roster", participants: msg.participants, selfId: currentSelfId });
         break;
       case "room_title":
         currentTitle = msg.title;
-        chrome.runtime.sendMessage({ type: "room_title", title: msg.title }).catch(() => {});
+        notifyPopup({ type: "room_title", title: msg.title });
         break;
       case "no_room":
         // ルームが存在しない：再接続ループを回さず即セッションを解放する。status は no_room の
         // まま残してユーザーに理由を伝えつつ、started=false で作成/参加をそのままやり直せる。
-        chrome.runtime.sendMessage({ type: "server_event", event: "no_room" }).catch(() => {});
         resetSession("no_room");
+        notifyPopup({ type: "status", status: "no_room" });
         break;
-      // host_disconnected / host_resumed はpopupへ転送（status更新）
-      default: {
-        const next = nextStateForServerEvent(msg.type);
-        if (next) currentStatus = next;
-        chrome.runtime.sendMessage({ type: "server_event", event: msg.type }).catch(() => {});
-      }
+      // host_disconnected / host_resumed は status へ写像して popup に push
+      default:
+        applyServerEventStatus(msg.type);
     }
   }
 
@@ -219,13 +222,14 @@ async function start(session: Session): Promise<void> {
       session.roomId = data.roomId;
       session.hostToken = data.hostToken;
       currentRoomId = data.roomId;
-      chrome.runtime.sendMessage({ type: "room_created", roomId: data.roomId }).catch(() => {});
+      notifyPopup({ type: "room_created", roomId: data.roomId });
     } catch {
       life.dispose();
+      // 旧実装は popup へ host_disconnected イベントを送り「ホスト切断」表示になっていたが、
+      // 内部状態は disconnected で、popup を開き直すと「切断」になる不整合があった。
+      // 算出済みステータスを push する方式で「切断」に統一する。
       currentStatus = "disconnected";
-      chrome.runtime
-        .sendMessage({ type: "server_event", event: "host_disconnected" })
-        .catch(() => {});
+      notifyPopup({ type: "status", status: "disconnected" });
       started = false; // 作成失敗時はセッションを開始済みにせず、popup から再試行できるようにする
       return;
     }
