@@ -1,0 +1,24 @@
+version: 2
+
+# cooldown は pnpm-workspace.yaml の minimumReleaseAge（10080分 = 7日）に揃える。
+# これでバージョン更新PRは新規リリースを7日寝かせてから作られ、CIの
+# supply-chain チェック（pnpm install --frozen-lockfile）を最初から通過する。
+#
+# 注意: cooldown は「バージョン更新」にしか効かない。Dependabot の
+# セキュリティ更新（automated-security-fixes）は仕様で cooldown を無視するため、
+# 脆弱性パッチPRは公開直後に作られ、cooldown 明けまでは CI が赤くなる。
+# それは意図した挙動（7日寝かせるポリシー通り）なので、緑になってからマージする。
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
