@@ -2,6 +2,9 @@
 
 U-NEXT の **参加者（スレーブ）側**の挙動を、実ブラウザ1台だけで検証するための手順。
 
+ホスト側（実ブラウザがホスト ↔ 擬似参加者オブザーバ）の手順は本書の鏡像で、
+[`e2e-real-host-testing.md`](./e2e-real-host-testing.md) を参照。
+
 ## なぜこの方式か
 
 当初の手動E2E（spec §8 / plan Task 10 Step 5）は「2つのChromeプロファイルでホストと参加者を立てる」
@@ -203,3 +206,5 @@ pkill -f "wrangler dev"              # ローカル Worker 停止
 - **CF Workers コールドスタート / Hibernation 復帰レイテンシ**: 本番 Workers 接続時のみ。ローカル検証では対象外。
 - **ホスト側の実機挙動**: 擬似ホストはサーバーへの WS メッセージ送出を模すだけで、実ブラウザの
   `<video>` イベント（timeupdate 駆動 heartbeat 等）は検証しない。
+  → これは [`e2e-real-host-testing.md`](./e2e-real-host-testing.md)（実ブラウザホスト ↔ 擬似参加者
+  オブザーバ `scripts/e2e-observer.mjs`）でカバーする。

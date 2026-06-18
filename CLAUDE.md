@@ -104,7 +104,7 @@ extension/src/   Chrome MV3
 
 ### 既知の制約（post-MVP）
 
-参加者側のU-NEXT実機ブラウザE2Eは擬似ホスト方式で実施済み（手順 `docs/e2e-pseudo-host-testing.md`、本番スモークは `scripts/e2e-prod-smoke.mjs`）。ホスト側は擬似ホストがWS送出を模すのみ。その他、ホストのページ再読込でルーム復帰しない・`seq` リセット問題などは spec §11「既知の制約」に記載。
+参加者側のU-NEXT実機ブラウザE2Eは擬似ホスト方式で実施済み（手順 `docs/e2e-pseudo-host-testing.md`、本番スモークは `scripts/e2e-prod-smoke.mjs`）。ホスト側の実機E2Eはその鏡像（実ブラウザがホスト ↔ 擬似参加者オブザーバ `scripts/e2e-observer.mjs`、手順 `docs/e2e-real-host-testing.md`）。その他、ホストのページ再読込でルーム復帰しない・`seq` リセット問題などは spec §11「既知の制約」に記載。
 
 **CF Workers ロールバック手順**: 旧 Node.js ランタイム（`server/`・`build-server.mjs`）は git 履歴に残っている（削除コミットを `git revert` で復元し Render に再デプロイ）。CF が不健全な場合の退避策として使える。移行仕様は `docs/superpowers/specs/2026-06-07-cloudflare-workers-do-migration-design.md` 参照。
 
