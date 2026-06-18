@@ -21,7 +21,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.16",
     "@cloudflare/vitest-pool-workers": "^0.16.10",
-    "@cloudflare/workers-types": "^4.20260531.1",
+    "@cloudflare/workers-types": "^4.20260611.1",
     "@types/chrome": "^0.1.42",
     "@types/node": "^25.9.1",
     "@types/ws": "^8.18.1",
