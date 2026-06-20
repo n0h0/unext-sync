@@ -23,7 +23,7 @@
     "@cloudflare/vitest-pool-workers": "^0.16.14",
     "@cloudflare/workers-types": "^4.20260611.1",
     "@types/chrome": "^0.1.43",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.3",
     "@types/ws": "^8.18.1",
     "esbuild": "^0.28.0",
     "tsx": "^4.22.4",
