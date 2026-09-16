@@ -25,3 +25,8 @@ allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
+
+# 推移的依存の強制バージョン（セキュリティ修正の反映が上流に来るまでの繋ぎ）
+overrides:
+  # miniflare が pin する sharp<0.35.4 に脆弱性（GHSA）があるため強制
+  sharp: "0.35.4"
